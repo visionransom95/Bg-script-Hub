@@ -5,8 +5,45 @@ import fs from "fs";
 import cors from "cors";
 import crypto from "crypto";
 import { put, list, del, head } from "@vercel/blob";
+import { google } from "googleapis";
+import { Readable } from 'stream';
+import admin from "firebase-admin";
 
-const UPLOADS_DIR = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(process.cwd(), "uploads");
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  try {
+    const configData = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf-8'));
+    admin.initializeApp({
+      projectId: configData.projectId,
+      storageBucket: configData.storageBucket
+    });
+    console.log("Firebase Admin initialized");
+  } catch (err) {
+    console.error("Failed to initialize Firebase Admin", err);
+  }
+}
+
+const db = admin.firestore();
+const storage = admin.storage();
+const bucket = storage.bucket();
+
+let driveClient: any = null;
+let DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+if (process.env.GOOGLE_DRIVE_CREDENTIALS && DRIVE_FOLDER_ID) {
+  try {
+     const credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
+     const driveAuth = new google.auth.GoogleAuth({
+       credentials,
+       scopes: ['https://www.googleapis.com/auth/drive.file']
+     });
+     driveClient = google.drive({ version: 'v3', auth: driveAuth });
+     console.log("Google Drive client initialized.");
+  } catch (err) {
+     console.error("Failed to init Google Drive client", err);
+  }
+}
+
+const UPLOADS_DIR = process.env.STORAGE_DIR || (process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(process.cwd(), "uploads"));
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -33,6 +70,9 @@ interface FileVersion {
   size: number;
   createdAt: number;
   blobUrl?: string; // Add blobUrl if uploaded to vercel
+  driveFileId?: string; // Add Google Drive file ID
+  storagePath?: string; // Firebase Storage path
+  firebaseUrl?: string; // Firebase Storage public URL (if public)
 }
 
 interface FileEntry {
@@ -42,7 +82,44 @@ interface FileEntry {
   versions: FileVersion[];
 }
 
+let cachedDriveMetadataId: string | null = null;
+
 async function getMetadata(): Promise<Record<string, FileEntry>> {
+  // Try Firestore first
+  try {
+    const snapshot = await db.collection('files').get();
+    if (!snapshot.empty) {
+      const data: Record<string, FileEntry> = {};
+      snapshot.forEach(doc => {
+        data[doc.id] = doc.data() as FileEntry;
+      });
+      return data;
+    }
+  } catch (err) {
+    console.error("Firestore metadata fetch failed:", err);
+  }
+
+  if (driveClient && DRIVE_FOLDER_ID) {
+    try {
+      const res = await driveClient.files.list({
+        q: `name='metadata.json' and '${DRIVE_FOLDER_ID}' in parents and trashed=false`,
+        fields: 'files(id)'
+      });
+      if (res.data.files && res.data.files.length > 0) {
+        cachedDriveMetadataId = res.data.files[0].id;
+        const fileRes = await driveClient.files.get({ fileId: cachedDriveMetadataId, alt: 'media' }, { responseType: 'stream' });
+        const chunks: any[] = [];
+        for await (const chunk of fileRes.data) {
+           chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
+        return JSON.parse(buffer.toString());
+      }
+    } catch (e) {
+       console.error("Drive metadata fetch failed:", e);
+    }
+  }
+
   let vercelData: Record<string, FileEntry> | null = null;
   
   if (process.env.BLOB_READ_WRITE_TOKEN) {
@@ -72,6 +149,44 @@ async function getMetadata(): Promise<Record<string, FileEntry>> {
 }
 
 async function saveMetadata(data: Record<string, FileEntry>) {
+  // Save to Firestore
+  try {
+    const batch = db.batch();
+    for (const [id, entry] of Object.entries(data)) {
+      const docRef = db.collection('files').doc(id);
+      batch.set(docRef, entry);
+    }
+    await batch.commit();
+    console.log("Metadata synced to Firestore");
+  } catch (err) {
+    console.error("Firestore metadata save failed:", err);
+  }
+
+  if (driveClient && DRIVE_FOLDER_ID) {
+     try {
+        const buffer = Buffer.from(JSON.stringify(data, null, 2));
+        const media = {
+           mimeType: 'application/json',
+           body: Readable.from(buffer)
+        };
+        if (cachedDriveMetadataId) {
+           await driveClient.files.update({
+             fileId: cachedDriveMetadataId,
+             media: media
+           });
+        } else {
+           const driveRes = await driveClient.files.create({
+             requestBody: { name: 'metadata.json', parents: [DRIVE_FOLDER_ID] },
+             media: media,
+             fields: 'id'
+           });
+           cachedDriveMetadataId = driveRes.data.id;
+        }
+     } catch (e) {
+        console.error("Drive metadata save failed:", e);
+     }
+  }
+
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       await put('metadata.json', JSON.stringify(data, null, 2), { access: 'public', addRandomSuffix: false, allowOverwrite: true });
@@ -131,14 +246,49 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     }
     
     let blobUrl: string | undefined;
+    let driveFileId: string | undefined;
+    let storagePath: string | undefined;
+    let firebaseUrl: string | undefined;
     
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      // Upload to Vercel Blob
-      const blob = await put(internalFilename, fileData, { access: 'public' });
-      blobUrl = blob.url;
-    } else {
-      // Save to local disk
-      fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+    // Always prefer Firebase Storage now
+    try {
+      storagePath = `uploads/${internalFilename}`;
+      const file = bucket.file(storagePath);
+      await file.save(fileData, {
+        metadata: {
+          contentType: req.file.mimetype,
+        },
+      });
+      // Make it public or get a signed URL
+      // For simplicity in this app, we'll use the path and fetch it server-side for now
+      // Or we can use getDownloadURL if it were client side, but server side we can just use the path
+      console.log(`Uploaded to Firebase Storage: ${storagePath}`);
+    } catch (err) {
+      console.error("Firebase Storage upload failed:", err);
+      // Fallback logic
+      if (driveClient && DRIVE_FOLDER_ID) {
+        try {
+          const media = {
+            mimeType: req.file.mimetype,
+            body: Readable.from(fileData)
+          };
+          const driveRes = await driveClient.files.create({
+            requestBody: { name: internalFilename, parents: [DRIVE_FOLDER_ID] },
+            media: media,
+            fields: 'id'
+          });
+          driveFileId = driveRes.data.id;
+        } catch (err) {
+          console.error("Google Drive upload failed:", err);
+        }
+      } else if (process.env.BLOB_READ_WRITE_TOKEN) {
+        // Upload to Vercel Blob
+        const blob = await put(internalFilename, fileData, { access: 'public' });
+        blobUrl = blob.url;
+      } else {
+        // Save to local disk
+        fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+      }
     }
     
     const metadata = await getMetadata();
@@ -157,7 +307,10 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       filename: internalFilename,
       size: fileData.length,
       createdAt: Date.now(),
-      blobUrl
+      blobUrl,
+      driveFileId,
+      storagePath,
+      firebaseUrl
     });
     
     await saveMetadata(metadata);
@@ -215,6 +368,8 @@ app.get("/api/download/:filename", async (req, res) => {
   let isEncrypted = false;
   let originalName = filename;
   let blobUrl: string | undefined;
+  let driveFileId: string | undefined;
+  let storagePath: string | undefined;
   
   const metadata = await getMetadata();
   for (const entry of Object.values(metadata)) {
@@ -223,6 +378,8 @@ app.get("/api/download/:filename", async (req, res) => {
       isEncrypted = entry.isEncrypted;
       originalName = entry.originalName;
       blobUrl = version.blobUrl;
+      driveFileId = version.driveFileId;
+      storagePath = version.storagePath;
       break;
     }
   }
@@ -234,8 +391,26 @@ app.get("/api/download/:filename", async (req, res) => {
 
   let fileBuffer: Buffer | null = null;
   
-  // Read from Vercel Blob or Disk
-  if (process.env.BLOB_READ_WRITE_TOKEN && blobUrl) {
+  if (storagePath && admin.apps.length) {
+    try {
+      const file = bucket.file(storagePath);
+      const [buffer] = await file.download();
+      fileBuffer = buffer;
+    } catch (err) {
+      console.error("Failed to read from Firebase Storage", err);
+    }
+  } else if (driveFileId && driveClient) {
+     try {
+       const fileRes = await driveClient.files.get({ fileId: driveFileId, alt: 'media' }, { responseType: 'stream' });
+       const chunks: any[] = [];
+       for await (const chunk of fileRes.data) {
+          chunks.push(chunk);
+       }
+       fileBuffer = Buffer.concat(chunks);
+     } catch (err) {
+       console.error("Failed to read from Google Drive", err);
+     }
+  } else if (process.env.BLOB_READ_WRITE_TOKEN && blobUrl) {
      try {
         const fetched = await fetch(blobUrl);
         const arrayBuf = await fetched.arrayBuffer();
@@ -320,16 +495,24 @@ app.delete("/api/files", async (req, res) => {
 
   const metadata = await getMetadata();
   
+  const deleteVersion = async (v: FileVersion) => {
+    if (v.storagePath && admin.apps.length) {
+      try { await bucket.file(v.storagePath).delete(); } catch (e) { console.error("Firebase delete failed", e); }
+    } else if (driveClient && v.driveFileId) {
+      try { await driveClient.files.delete({ fileId: v.driveFileId }); } catch (e) { console.error("Drive delete failed", e); }
+    } else if (process.env.BLOB_READ_WRITE_TOKEN && v.blobUrl) {
+      try { await del(v.blobUrl); } catch (e) {}
+    } else {
+      const filePath = path.join(UPLOADS_DIR, v.filename);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+  };
+
   // Check if it's an ID
   if (metadata[identifier]) {
     const entry = metadata[identifier];
     for (const v of entry.versions) {
-      if (process.env.BLOB_READ_WRITE_TOKEN && v.blobUrl) {
-         try { await del(v.blobUrl); } catch (e) {}
-      } else {
-         const filePath = path.join(UPLOADS_DIR, v.filename);
-         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      }
+      await deleteVersion(v);
     }
     delete metadata[identifier];
     await saveMetadata(metadata);
@@ -342,12 +525,7 @@ app.delete("/api/files", async (req, res) => {
     const vIndex = entry.versions.findIndex(v => v.filename === identifier);
     if (vIndex !== -1) {
        const v = entry.versions[vIndex];
-       if (process.env.BLOB_READ_WRITE_TOKEN && v.blobUrl) {
-          try { await del(v.blobUrl); } catch (e) {}
-       } else {
-          const filePath = path.join(UPLOADS_DIR, v.filename);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-       }
+       await deleteVersion(v);
        
        entry.versions.splice(vIndex, 1);
        found = true;

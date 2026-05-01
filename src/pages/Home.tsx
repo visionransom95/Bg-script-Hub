@@ -95,6 +95,14 @@ export default function Home() {
           <p className="text-lg text-gray-600 mb-8 max-w-lg">
             Upload, store, and share your scripts and files effortlessly. A simple, secure platform built for everyone.
           </p>
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-8 max-w-lg">
+            <h3 className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" /> Lifetime Storage Enabled
+            </h3>
+            <p className="text-xs text-blue-700 leading-relaxed">
+              Files are now permanently stored using <strong>Firebase Storage</strong> and metadata is managed with <strong>Firestore</strong>. Your scripts and files are safe and secure across server restarts.
+            </p>
+          </div>
           <div className="flex gap-4">
             <button 
               onClick={() => document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth' })}

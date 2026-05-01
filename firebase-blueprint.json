@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "FileVersion": {
+      "title": "File Version",
+      "description": "Represents a specific version of an uploaded file.",
+      "type": "object",
+      "properties": {
+        "filename": { "type": "string" },
+        "size": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "blobUrl": { "type": "string" },
+        "driveFileId": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "firebaseUrl": { "type": "string" }
+      },
+      "required": ["filename", "size", "createdAt"]
+    },
+    "FileEntry": {
+      "title": "File Entry",
+      "description": "Represents a collection of file versions with metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "originalName": { "type": "string" },
+        "isEncrypted": { "type": "boolean" },
+        "versions": {
+          "type": "array",
+          "items": { "$ref": "#/entities/FileVersion" }
+        }
+      },
+      "required": ["id", "originalName", "isEncrypted", "versions"]
+    }
+  },
+  "firestore": {
+    "files/{fileId}": {
+      "schema": "FileEntry",
+      "description": "Collection of all files and their versions."
+    }
+  }
+}
