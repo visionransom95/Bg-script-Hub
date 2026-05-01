@@ -8,6 +8,8 @@ import { put, list, del, head } from "@vercel/blob";
 import { google } from "googleapis";
 import { Readable } from 'stream';
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 // Initialize Firebase Admin
 let configData: any = null;
@@ -20,7 +22,7 @@ try {
   console.error("Failed to read Firebase config", err);
 }
 
-let db: admin.firestore.Firestore | null = null;
+let db: any = null;
 let bucket: any = null;
 
 if (!admin.apps.length && configData) {
@@ -37,12 +39,12 @@ if (!admin.apps.length && configData) {
 
 if (admin.apps.length) {
   db = configData?.firestoreDatabaseId 
-    ? admin.firestore(configData.firestoreDatabaseId) 
-    : admin.firestore();
-  bucket = admin.storage().bucket();
+    ? getFirestore(configData.firestoreDatabaseId) 
+    : getFirestore();
+  bucket = getStorage().bucket();
 }
 
-const storage = admin.storage();
+// storage variable removed as we use getStorage() modularly
 
 let driveClient: any = null;
 let DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
