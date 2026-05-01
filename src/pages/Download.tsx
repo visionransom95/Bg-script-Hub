@@ -1,14 +1,24 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, Fragment } from "react";
 import { Download as DownloadIcon, File as FileIcon, Clock, HardDrive, Trash2, Search, Eye, X, CheckSquare, Square, FolderArchive } from "lucide-react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
-interface FileInfo {
+interface FileVersionInfo {
   filename: string;
-  originalName: string;
   size: number;
   createdAt: string;
   url: string;
+}
+
+interface FileInfo {
+  id?: string;
+  filename: string;
+  originalName: string;
+  isEncrypted?: boolean;
+  size: number;
+  createdAt: string;
+  url: string;
+  versions?: FileVersionInfo[];
 }
 
 export default function Download() {
@@ -23,6 +33,8 @@ export default function Download() {
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<'image' | 'text' | 'unsupported' | null>(null);
+  const [activeTab, setActiveTab] = useState<'standard' | 'encrypted'>('standard');
+  const [expandedFileId, setExpandedFileId] = useState<string | null>(null);
 
   const fetchFiles = async () => {
     try {
@@ -42,8 +54,23 @@ export default function Download() {
     fetchFiles();
   }, []);
 
+  const recordDownloadHistory = (filesToRecord: FileInfo[]) => {
+    try {
+      const history = JSON.parse(localStorage.getItem('downloadHistory') || '[]');
+      const newEntries = filesToRecord.map(f => ({
+        originalName: f.originalName,
+        size: f.size,
+        downloadedAt: new Date().toISOString()
+      }));
+      localStorage.setItem('downloadHistory', JSON.stringify([...history, ...newEntries]));
+    } catch (e) {
+      console.error("Failed to save history", e);
+    }
+  };
+
   const handleDownload = (file: FileInfo) => {
     saveAs(file.url, file.originalName);
+    recordDownloadHistory([file]);
   };
 
   const handleDelete = async (filename: string) => {
@@ -81,6 +108,7 @@ export default function Download() {
     
     zip.generateAsync({ type: "blob" }).then((content) => {
       saveAs(content, "bg-script-hub-archive.zip");
+      recordDownloadHistory(selectedFilesInfo);
     });
   };
 
@@ -121,7 +149,11 @@ export default function Download() {
   };
 
   const filteredAndSortedFiles = [...files]
-    .filter(file => file.originalName.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(file => {
+      const matchesSearch = file.originalName.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTab = activeTab === 'encrypted' ? file.isEncrypted : !file.isEncrypted;
+      return matchesSearch && matchesTab;
+    })
     .sort((a, b) => {
       switch (sortOption) {
         case 'name-asc':
@@ -186,6 +218,27 @@ export default function Download() {
         </div>
       </div>
 
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          className={`flex-1 py-3 text-center font-bold text-sm uppercase tracking-widest transition-colors ${activeTab === 'standard' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-black hover:bg-gray-50'}`}
+          onClick={() => {
+            setActiveTab('standard');
+            setSelectedFiles(new Set());
+          }}
+        >
+          Standard Files
+        </button>
+        <button
+          className={`flex-1 py-3 text-center font-bold text-sm uppercase tracking-widest transition-colors ${activeTab === 'encrypted' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-black hover:bg-gray-50'}`}
+          onClick={() => {
+            setActiveTab('encrypted');
+            setSelectedFiles(new Set());
+          }}
+        >
+          Encrypted Files
+        </button>
+      </div>
+
       {/* Action Bar for Bulk Selection */}
       {selectedFiles.size > 0 && (
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6 flex items-center justify-between animate-in fade-in slide-in-from-top-4">
@@ -238,64 +291,107 @@ export default function Download() {
               <tbody>
                 {filteredAndSortedFiles.map((file) => {
                   const isSelected = selectedFiles.has(file.filename);
+                  const isExpanded = expandedFileId === file.filename;
+                  const hasVersions = file.versions && file.versions.length > 1;
+
                   return (
-                    <tr 
-                      key={file.filename} 
-                      className={`border-b border-gray-50 hover:bg-gray-50/50 transition-colors group ${isSelected ? 'bg-blue-50/30' : ''}`}
-                    >
-                      <td className="p-4 text-center">
-                        <button 
-                          onClick={() => toggleSelection(file.filename)}
-                          className={`text-gray-300 hover:text-black transition-colors ${isSelected ? 'text-blue-600' : ''}`}
-                        >
-                          {isSelected ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                        </button>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-black'}`}>
-                            <FileIcon className="h-5 w-5" />
+                    <Fragment key={file.filename}>
+                      <tr 
+                        className={`border-b border-gray-50 hover:bg-gray-50/50 transition-colors group ${isSelected ? 'bg-blue-50/30' : ''}`}
+                      >
+                        <td className="p-4 text-center">
+                          <button 
+                            onClick={() => toggleSelection(file.filename)}
+                            className={`text-gray-300 hover:text-black transition-colors ${isSelected ? 'text-blue-600' : ''}`}
+                          >
+                            {isSelected ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                          </button>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-black'}`}>
+                              <FileIcon className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm truncate max-w-xs md:max-w-md lg:max-w-lg" title={file.originalName}>
+                                {file.originalName}
+                              </span>
+                              {hasVersions && (
+                                <button 
+                                  onClick={() => setExpandedFileId(isExpanded ? null : file.filename)}
+                                  className="text-xs text-blue-600 font-semibold uppercase tracking-wider text-left hover:underline mt-1 w-max"
+                                >
+                                  {isExpanded ? 'Hide Versions' : `View ${file.versions!.length} Versions`}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <span className="font-medium text-sm truncate max-w-xs md:max-w-md lg:max-w-lg" title={file.originalName}>
-                            {file.originalName}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm text-gray-500 tabular-nums">
-                        {(file.size / 1024 / 1024).toFixed(2)} MB
-                      </td>
-                      <td className="p-4 text-sm text-gray-500 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3" />
-                          {new Date(file.createdAt).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => handlePreview(file)}
-                            className="p-2 text-gray-400 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-100 rounded-lg transition-colors"
-                            title="Preview"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(file.filename)}
-                            className="p-2 text-gray-400 hover:text-red-600 bg-white hover:bg-red-50 border border-gray-100 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDownload(file)}
-                            className="flex items-center gap-2 bg-black text-white px-3 py-2 rounded-lg font-semibold text-xs hover:bg-gray-800 transition-colors"
-                          >
-                            <DownloadIcon className="h-4 w-4" />
-                            Get
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="p-4 text-sm text-gray-500 tabular-nums">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </td>
+                        <td className="p-4 text-sm text-gray-500 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3" />
+                            {new Date(file.createdAt).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => handlePreview(file)}
+                              className="p-2 text-gray-400 hover:text-blue-600 bg-white hover:bg-blue-50 border border-gray-100 rounded-lg transition-colors"
+                              title="Preview"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(file.filename)}
+                              className="p-2 text-gray-400 hover:text-red-600 bg-white hover:bg-red-50 border border-gray-100 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDownload(file)}
+                              className="flex items-center gap-2 bg-black text-white px-3 py-2 rounded-lg font-semibold text-xs hover:bg-gray-800 transition-colors"
+                            >
+                              <DownloadIcon className="h-4 w-4" />
+                              Get
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && hasVersions && (
+                        <tr className="bg-gray-50/50">
+                          <td colSpan={5} className="!p-0 border-b border-gray-100">
+                             <div className="pl-16 pr-4 py-4 space-y-2">
+                               <div className="text-xs uppercase tracking-widest font-semibold text-gray-500 mb-2">Version History</div>
+                               {file.versions!.map((v, i) => (
+                                 <div key={v.filename} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                   <div className="flex flex-col">
+                                     <span className="text-sm font-medium">Version {file.versions!.length - i}</span>
+                                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                       <span className="tabular-nums">{(v.size / 1024 / 1024).toFixed(2)} MB</span>
+                                       <span>•</span>
+                                       <span>{new Date(v.createdAt).toLocaleString()}</span>
+                                     </div>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                    <button 
+                                      onClick={() => handleDownload({url: v.url, originalName: file.originalName, size: v.size} as FileInfo)}
+                                      className="p-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold"
+                                    >
+                                      <DownloadIcon className="h-4 w-4" /> Get
+                                    </button>
+                                   </div>
+                                 </div>
+                               ))}
+                             </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
