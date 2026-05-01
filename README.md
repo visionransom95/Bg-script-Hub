@@ -1,20 +1,46 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# BG Script File Hub
 
-# Run and deploy your AI Studio app
+BG Script File Hub is a secure and robust platform for storing, sharing, and downloading files and scripts. Built with a responsive design, it offers a seamless experience for uploading files locally and downloading them globally.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/e15c1569-495d-439e-8dad-67c7f3992fa9
+- **Store & Share:** Upload files easily via drag-and-drop or file browser capabilities.
+- **File Encryption:** Option to encrypt files securely before putting them on the server.
+- **Version Control:** Upgrades are simple - you can upload newer versions of existing files, and access version history.
+- **Bulk Downloads:** Select multiple downloaded files and group them into a single ZIP archive.
+- **File Previews:** Directly view text format files and image contents directly in your browser window, with support for decrypted previews.
+- **Download History:** Track what you've downloaded over time effectively.
+- **Global Search & Sorting:** Quickly find files by searching their names, and organizing them based on upload dates or sizes.
 
-## Run Locally
+## Credits & Community
 
-**Prerequisites:**  Node.js
+- **Founder:** Xen
+- **Created by:** Ransom
 
+Join our active community to discuss scripts, request features, and get support: 
+[Join our Discord Server](https://discord.gg/Cqhb4X3xMU)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Getting Started (Development)
+
+This application is built with a React frontend (Vite) and an Express.js backend for handling file storage.
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+   The backend API and Vite dev server will run concurrently.
+
+3. **Production Build:**
+   ```bash
+   npm run build
+   npm start
+   ```
+
+## Security and Privacy
+
+We respect user privacy and focus primarily on providing stable, un-intrusive file hosting. The added encryption capability ensures your more sensitive objects remain unreadable on the disk.
