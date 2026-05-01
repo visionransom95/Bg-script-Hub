@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Fragment } from "react";
-import { Download as DownloadIcon, File as FileIcon, Clock, HardDrive, Search, Eye, X, CheckSquare, Square, FolderArchive } from "lucide-react";
+import { Download as DownloadIcon, File as FileIcon, Clock, HardDrive, Search, Eye, X, CheckSquare, Square, FolderArchive, Trash2 } from "lucide-react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
@@ -29,7 +29,15 @@ export default function Download() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState("date-desc");
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('adminToken'));
   
+  // Listen for storage changes in case of cross-tab login
+  useEffect(() => {
+    const handleStorage = () => setAdminToken(localStorage.getItem('adminToken'));
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<'image' | 'text' | 'unsupported' | null>(null);
@@ -71,6 +79,36 @@ export default function Download() {
   const handleDownload = (file: FileInfo) => {
     saveAs(file.url, file.originalName);
     recordDownloadHistory([file]);
+  };
+
+  const handleDelete = async (filename: string) => {
+    if (!adminToken) {
+      alert("Unauthorized: Only owner can delete files.");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to delete this file?")) return;
+    try {
+      const res = await fetch(`/api/files?id=${encodeURIComponent(filename)}`, { 
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
+      if (res.ok) {
+        fetchFiles();
+        if (selectedFiles.has(filename)) {
+          const newSelection = new Set(selectedFiles);
+          newSelection.delete(filename);
+          setSelectedFiles(newSelection);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete file.");
+      }
+    } catch (error) {
+      console.error("Failed to delete file", error);
+      alert("An error occurred while deleting the file.");
+    }
   };
 
   const handleBulkDownload = async () => {
@@ -328,6 +366,15 @@ export default function Download() {
                             >
                               <Eye className="h-4 w-4" />
                             </button>
+                            {adminToken && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleDelete(file.filename); }}
+                                className="p-2 text-gray-400 hover:text-red-600 bg-white hover:bg-red-50 border border-gray-100 rounded-lg transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                             <button 
                               onClick={() => handleDownload(file)}
                               className="flex items-center gap-2 bg-black text-white px-3 py-2 rounded-lg font-semibold text-xs hover:bg-gray-800 transition-colors"
@@ -375,6 +422,36 @@ export default function Download() {
           </div>
         </div>
       )}
+
+      {/* Admin Quick Login Foot */}
+      <div className="mt-12 flex justify-center">
+        {!adminToken ? (
+          <button 
+            onClick={() => {
+              const pass = window.prompt("Admin Password:");
+              if (pass === "bgscripthub666") {
+                localStorage.setItem("adminToken", pass);
+                setAdminToken(pass);
+              } else if (pass) {
+                alert("Incorrect password.");
+              }
+            }}
+            className="text-[10px] text-gray-300 hover:text-gray-500 uppercase tracking-widest font-bold transition-colors"
+          >
+            Admin Sign-in
+          </button>
+        ) : (
+          <button 
+            onClick={() => {
+              localStorage.removeItem("adminToken");
+              setAdminToken(null);
+            }}
+            className="text-[10px] text-red-300 hover:text-red-500 uppercase tracking-widest font-bold transition-colors"
+          >
+            Admin Sign-out
+          </button>
+        )}
+      </div>
 
       {/* Preview Modal */}
       {previewFile && (

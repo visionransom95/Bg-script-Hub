@@ -298,4 +298,72 @@ app.get("/api/download/:filename", async (req, res) => {
   }
 });
 
+// Login endpoint
+app.post("/api/admin/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username === "bgscripthub" && password === "bgscripthub666") {
+    res.json({ token: "bgscripthub666" }); // simplistic token
+  } else {
+    res.status(401).json({ error: "Invalid credentials" });
+  }
+});
+
+// Delete file
+app.delete("/api/files", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== `Bearer bgscripthub666`) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  const identifier = req.query.id as string;
+  if (!identifier) return res.status(400).json({ error: "Missing id" });
+
+  const metadata = await getMetadata();
+  
+  // Check if it's an ID
+  if (metadata[identifier]) {
+    const entry = metadata[identifier];
+    for (const v of entry.versions) {
+      if (process.env.BLOB_READ_WRITE_TOKEN && v.blobUrl) {
+         try { await del(v.blobUrl); } catch (e) {}
+      } else {
+         const filePath = path.join(UPLOADS_DIR, v.filename);
+         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+    delete metadata[identifier];
+    await saveMetadata(metadata);
+    return res.json({ message: "File group deleted successfully" });
+  }
+  
+  // Check if it's a specific version filename
+  let found = false;
+  for (const [id, entry] of Object.entries(metadata)) {
+    const vIndex = entry.versions.findIndex(v => v.filename === identifier);
+    if (vIndex !== -1) {
+       const v = entry.versions[vIndex];
+       if (process.env.BLOB_READ_WRITE_TOKEN && v.blobUrl) {
+          try { await del(v.blobUrl); } catch (e) {}
+       } else {
+          const filePath = path.join(UPLOADS_DIR, v.filename);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+       }
+       
+       entry.versions.splice(vIndex, 1);
+       found = true;
+       if (entry.versions.length === 0) {
+          delete metadata[id];
+       }
+       break;
+    }
+  }
+  
+  if (found) {
+     await saveMetadata(metadata);
+     return res.json({ message: "File deleted successfully" });
+  }
+  
+  res.status(404).json({ error: "File not found" });
+});
+
 export default app;

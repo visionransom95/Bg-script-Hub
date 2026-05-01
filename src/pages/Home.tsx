@@ -1,20 +1,20 @@
 import React, { useState, useRef } from "react";
-import { UploadCloud, CheckCircle, AlertCircle, File as FileIcon, Lock } from "lucide-react";
+import { UploadCloud, CheckCircle, AlertCircle, File as FileIcon, Lock, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isEncrypted, setIsEncrypted] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error' | 'partial'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      setFiles(prev => [...prev, ...Array.from(e.target.files!)]);
       setUploadStatus('idle');
       setUploadProgress(0);
       setErrorMessage('');
@@ -23,46 +23,66 @@ export default function Home() {
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
       setUploadStatus('idle');
       setUploadProgress(0);
       setErrorMessage('');
     }
   };
 
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    if (files.length === 1) setUploadStatus('idle');
+  };
+
   const handleUpload = async () => {
-    if (!file) return;
+    if (files.length === 0) return;
 
     setUploading(true);
     setUploadStatus('idle');
     setUploadProgress(0);
     setErrorMessage('');
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("isEncrypted", isEncrypted.toString());
+    let successCount = 0;
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("isEncrypted", isEncrypted.toString());
 
-    try {
-      await axios.post("/api/upload", formData, {
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percentCompleted);
-          }
+        try {
+            await axios.post("/api/upload", formData, {
+                onUploadProgress: (progressEvent) => {
+                  if (progressEvent.total) {
+                    const fileProg = (progressEvent.loaded / progressEvent.total) * 100;
+                    const overallProg = ((i * 100) + fileProg) / files.length;
+                    setUploadProgress(Math.round(overallProg));
+                  }
+                }
+            });
+            successCount++;
+        } catch (error: any) {
+             console.error("Failed to upload", file.name, error);
         }
-      });
-
-      setUploadStatus('success');
-      setFile(null);
-      setTimeout(() => setUploadProgress(0), 1000); // Clear after a bit
-    } catch (error: any) {
-      const serverMsg = error.response?.data?.error || (error.response?.status === 413 ? "File is too large for serverless upload (>4.5MB limit)." : "");
-      setUploadStatus('error');
-      setErrorMessage(serverMsg || "Error uploading file. Please try again.");
-    } finally {
-      setUploading(false);
     }
+
+    setUploading(false);
+    
+    if (successCount === files.length) {
+        setUploadStatus('success');
+        setFiles([]);
+    } else if (successCount > 0) {
+        setUploadStatus('partial');
+        setErrorMessage(`Uploaded ${successCount} files, but ${files.length - successCount} failed.`);
+        setFiles([]);
+    } else {
+        setUploadStatus('error');
+        setErrorMessage("Error uploading files. Please try again.");
+    }
+    
+    setTimeout(() => setUploadProgress(0), 1000);
   };
 
   return (
@@ -105,7 +125,7 @@ export default function Home() {
           
           <div 
             className={`border-2 border-dashed rounded-2xl p-10 text-center transition-colors cursor-pointer ${
-              file ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-black hover:bg-gray-50'
+              files.length > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-black hover:bg-gray-50'
             }`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -113,29 +133,53 @@ export default function Home() {
           >
             <input 
               type="file" 
+              multiple
               ref={fileInputRef} 
               onChange={handleFileChange} 
               onClick={(e) => e.stopPropagation()}
               accept=".js,.py,.lua,.sh,.txt,.md,.pdf,.png,.jpg,.jpeg,.zip,.rar"
               className="hidden" 
             />
-            {file ? (
-              <div className="flex flex-col items-center gap-3">
-                <FileIcon className="h-10 w-10 text-blue-500" />
-                <span className="font-medium text-blue-700 break-all">{file.name}</span>
-                <span className="text-xs text-blue-500 uppercase font-semibold">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+            {files.length > 0 ? (
+              <div className="flex flex-col gap-3 w-full max-w-sm mx-auto">
+                <p className="text-sm font-semibold text-gray-700">{files.length} file{files.length !== 1 ? 's' : ''} selected</p>
+                <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                  {files.map((file, idx) => (
+                    <div key={idx} className="flex flex-col items-start gap-1 p-3 bg-white border border-gray-100 rounded-xl">
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileIcon className="h-5 w-5 text-blue-500 shrink-0" />
+                          <span className="font-medium text-black text-sm truncate">{file.name}</span>
+                        </div>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                          className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-gray-400 uppercase font-semibold pl-7">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="text-xs text-blue-600 font-semibold uppercase tracking-wider hover:underline mt-2"
+                >
+                  + Add more files
+                </button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
                 <UploadCloud className="h-12 w-12 text-gray-400" />
-                <span className="text-gray-600 font-medium tracking-wide">Drag & drop your file here</span>
+                <span className="text-gray-600 font-medium tracking-wide">Drag & drop your files here</span>
                 <span className="text-xs text-gray-400 uppercase tracking-widest">or click to browse</span>
                 <span className="text-[10px] text-gray-400 font-medium mt-1">Supported: JS, PY, LUA, TXT, PDF, ZIP, PNG, JPG</span>
               </div>
             )}
           </div>
           
-          {file && (
+          {files.length > 0 && (
             <div className="mt-4 flex items-center gap-2 px-1">
               <input 
                 type="checkbox" 
@@ -153,7 +197,7 @@ export default function Home() {
           <div className="mt-6 flex flex-col gap-2">
             <button 
               onClick={handleUpload}
-              disabled={!file || uploading}
+              disabled={files.length === 0 || uploading}
               className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors relative"
             >
               <span className="relative z-10">{uploading ? `Uploading... ${uploadProgress}%` : "Upload File"}</span>
@@ -164,6 +208,13 @@ export default function Home() {
             <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
               <CheckCircle className="h-5 w-5" />
               <span className="font-medium text-sm">File uploaded successfully! Check the Downloads page.</span>
+            </div>
+          )}
+
+          {uploadStatus === 'partial' && (
+            <div className="mt-4 p-4 bg-yellow-50 text-yellow-700 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+              <AlertCircle className="h-5 w-5" />
+              <span className="font-medium text-sm">{errorMessage}</span>
             </div>
           )}
 

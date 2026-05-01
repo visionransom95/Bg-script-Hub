@@ -17,6 +17,7 @@ export default function Footer() {
         <div className="mt-2 pt-4 border-t border-gray-100 flex flex-col sm:flex-row gap-2 sm:gap-6 justify-center items-center w-full relative">
           <p className="uppercase tracking-widest text-xs">Founder: <span className="font-bold text-black">Xen</span></p>
           <p className="uppercase tracking-widest text-xs">Created by: <span className="font-bold text-black">Ransom</span></p>
+          <Link to="/admin" className="sm:absolute right-0 text-[10px] text-gray-400 hover:text-black uppercase tracking-widest">Admin Panel</Link>
         </div>
       </div>
     </footer>

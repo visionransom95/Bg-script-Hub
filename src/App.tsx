@@ -11,6 +11,7 @@ import Download from "./pages/Download";
 import Info from "./pages/Info";
 import Contact from "./pages/Contact";
 import History from "./pages/History";
+import Admin from "./pages/Admin";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/info" element={<Info />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </main>
         <Footer />
