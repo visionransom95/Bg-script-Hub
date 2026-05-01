@@ -4,7 +4,7 @@ import multer from "multer";
 import fs from "fs";
 import cors from "cors";
 import crypto from "crypto";
-import { put, list, del } from "@vercel/blob";
+import { put, list, del, head } from "@vercel/blob";
 
 const UPLOADS_DIR = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -43,25 +43,29 @@ interface FileEntry {
 }
 
 async function getMetadata(): Promise<Record<string, FileEntry>> {
+  let vercelData: Record<string, FileEntry> | null = null;
+  
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
-      const { blobs } = await list({ prefix: 'metadata.json', limit: 1 });
-      if (blobs.length > 0) {
-        const res = await fetch(blobs[0].downloadUrl);
-        if (res.ok) {
-          return await res.json();
-        }
+      const blobMeta = await head('metadata.json');
+      const res = await fetch(blobMeta.downloadUrl, { cache: 'no-store' });
+      if (res.ok) {
+        vercelData = await res.json();
       }
     } catch (e) {
       console.error("Vercel Blob metadata fetch failed:", e);
     }
-  } else {
-    if (fs.existsSync(METADATA_FILE)) {
-      try {
-        return JSON.parse(fs.readFileSync(METADATA_FILE, 'utf-8'));
-      } catch {
-        return {};
-      }
+  }
+  
+  if (vercelData) {
+    return vercelData;
+  }
+
+  if (fs.existsSync(METADATA_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(METADATA_FILE, 'utf-8'));
+    } catch {
+      return {};
     }
   }
   return {};
@@ -70,12 +74,15 @@ async function getMetadata(): Promise<Record<string, FileEntry>> {
 async function saveMetadata(data: Record<string, FileEntry>) {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
-      await put('metadata.json', JSON.stringify(data, null, 2), { access: 'public', addRandomSuffix: false });
+      await put('metadata.json', JSON.stringify(data, null, 2), { access: 'public', addRandomSuffix: false, allowOverwrite: true });
     } catch (e) {
       console.error("Vercel Blob metadata save failed:", e);
     }
-  } else {
+  }
+  try {
     fs.writeFileSync(METADATA_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("Local metadata save failed:", e);
   }
 }
 
@@ -115,6 +122,9 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     let fileData = req.file.buffer;
     
     if (isEncrypted) {
+      if (process.env.VERCEL && !process.env.ENCRYPTION_SECRET) {
+        return res.status(500).json({ error: "Encryption requires ENCRYPTION_SECRET environment variable on Vercel." });
+      }
       const iv = crypto.randomBytes(16);
       const cipher = crypto.createCipheriv(CIPHER_ALGO, keyBuffer, iv);
       fileData = Buffer.concat([iv, cipher.update(fileData), cipher.final()]);
@@ -232,17 +242,6 @@ app.get("/api/download/:filename", async (req, res) => {
         fileBuffer = Buffer.from(arrayBuf);
      } catch (err) {
        console.error("Failed to read from Vercel Blob URL", err);
-     }
-  } else if (process.env.BLOB_READ_WRITE_TOKEN) {
-     try {
-       const { blobs } = await list({ prefix: filename, limit: 1 });
-       if (blobs.length > 0) {
-          const fetched = await fetch(blobs[0].downloadUrl);
-          const arrayBuf = await fetched.arrayBuffer();
-          fileBuffer = Buffer.from(arrayBuf);
-       }
-     } catch (err) {
-       console.error("Failed to read from Vercel Blob", err);
      }
   }
   
