@@ -9,6 +9,7 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -16,6 +17,7 @@ export default function Home() {
       setFile(e.target.files[0]);
       setUploadStatus('idle');
       setUploadProgress(0);
+      setErrorMessage('');
     }
   };
 
@@ -25,6 +27,7 @@ export default function Home() {
       setFile(e.dataTransfer.files[0]);
       setUploadStatus('idle');
       setUploadProgress(0);
+      setErrorMessage('');
     }
   };
 
@@ -34,6 +37,7 @@ export default function Home() {
     setUploading(true);
     setUploadStatus('idle');
     setUploadProgress(0);
+    setErrorMessage('');
 
     const formData = new FormData();
     formData.append("file", file);
@@ -52,8 +56,10 @@ export default function Home() {
       setUploadStatus('success');
       setFile(null);
       setTimeout(() => setUploadProgress(0), 1000); // Clear after a bit
-    } catch (error) {
+    } catch (error: any) {
+      const serverMsg = error.response?.data?.error || (error.response?.status === 413 ? "File is too large for serverless upload (>4.5MB limit)." : "");
       setUploadStatus('error');
+      setErrorMessage(serverMsg || "Error uploading file. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -164,7 +170,7 @@ export default function Home() {
           {uploadStatus === 'error' && (
             <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
               <AlertCircle className="h-5 w-5" />
-              <span className="font-medium text-sm">Error uploading file. Please try again.</span>
+              <span className="font-medium text-sm">{errorMessage}</span>
             </div>
           )}
         </div>
