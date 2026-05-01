@@ -24,7 +24,7 @@ export default function Contact() {
               <Mail className="h-6 w-6 text-black mt-1" />
               <div>
                 <h3 className="font-bold text-lg">Email Us</h3>
-                <p className="text-gray-500 mt-1">contact@bgscript.example.com</p>
+                <p className="text-gray-500 mt-1">visionransom95@gmail.com</p>
               </div>
             </div>
             
@@ -51,11 +51,14 @@ export default function Contact() {
         </div>
 
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-6" action="https://formsubmit.co/visionransom95@gmail.com" method="POST">
+            <input type="hidden" name="_next" value={window.location.href} />
+            <input type="hidden" name="_captcha" value="false" />
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Name</label>
               <input 
                 type="text" 
+                name="name"
                 required
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                 placeholder="John Doe"
@@ -66,6 +69,7 @@ export default function Contact() {
               <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Email</label>
               <input 
                 type="email" 
+                name="email"
                 required
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                 placeholder="john@example.com"
@@ -76,6 +80,7 @@ export default function Contact() {
               <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Message</label>
               <textarea 
                 rows={5}
+                name="message"
                 required
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                 placeholder="How can we help you?"
@@ -86,7 +91,7 @@ export default function Contact() {
               type="submit"
               className="w-full bg-black text-white px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-gray-800 transition-colors"
             >
-              {submitted ? "Message Sent!" : "Send Message"}
+              Send Message
             </button>
           </form>
         </div>

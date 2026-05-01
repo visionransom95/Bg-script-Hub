@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Fragment } from "react";
-import { Download as DownloadIcon, File as FileIcon, Clock, HardDrive, Trash2, Search, Eye, X, CheckSquare, Square, FolderArchive } from "lucide-react";
+import { Download as DownloadIcon, File as FileIcon, Clock, HardDrive, Search, Eye, X, CheckSquare, Square, FolderArchive } from "lucide-react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
@@ -71,23 +71,6 @@ export default function Download() {
   const handleDownload = (file: FileInfo) => {
     saveAs(file.url, file.originalName);
     recordDownloadHistory([file]);
-  };
-
-  const handleDelete = async (filename: string) => {
-    if (!window.confirm("Are you sure you want to delete this file?")) return;
-    try {
-      const res = await fetch(`/api/files/${filename}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchFiles();
-        if (selectedFiles.has(filename)) {
-          const newSelection = new Set(selectedFiles);
-          newSelection.delete(filename);
-          setSelectedFiles(newSelection);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to delete file", error);
-    }
   };
 
   const handleBulkDownload = async () => {
@@ -344,13 +327,6 @@ export default function Download() {
                               title="Preview"
                             >
                               <Eye className="h-4 w-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(file.filename)}
-                              className="p-2 text-gray-400 hover:text-red-600 bg-white hover:bg-red-50 border border-gray-100 rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
                             </button>
                             <button 
                               onClick={() => handleDownload(file)}
