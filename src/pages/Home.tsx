@@ -110,6 +110,7 @@ export default function Home() {
               ref={fileInputRef} 
               onChange={handleFileChange} 
               onClick={(e) => e.stopPropagation()}
+              accept=".js,.py,.lua,.sh,.txt,.md,.pdf,.png,.jpg,.jpeg,.zip,.rar"
               className="hidden" 
             />
             {file ? (
@@ -123,6 +124,7 @@ export default function Home() {
                 <UploadCloud className="h-12 w-12 text-gray-400" />
                 <span className="text-gray-600 font-medium tracking-wide">Drag & drop your file here</span>
                 <span className="text-xs text-gray-400 uppercase tracking-widest">or click to browse</span>
+                <span className="text-[10px] text-gray-400 font-medium mt-1">Supported: JS, PY, LUA, TXT, PDF, ZIP, PNG, JPG</span>
               </div>
             )}
           </div>
