@@ -5,12 +5,14 @@ BG Script Hub is a secure and robust platform for storing, sharing, and download
 ## Features
 
 - **Store & Share:** Upload files easily via drag-and-drop or file browser capabilities.
+- **Supported Formats:** .js, .py, .lua, .sh, .txt, .md, .pdf, .png, .jpg, .jpeg, .zip, .rar
 - **File Encryption:** Option to encrypt files securely before putting them on the server.
 - **Version Control:** Upgrades are simple - you can upload newer versions of existing files, and access version history.
 - **Bulk Downloads:** Select multiple downloaded files and group them into a single ZIP archive.
 - **File Previews:** Directly view text format files and image contents directly in your browser window, with support for decrypted previews.
 - **Download History:** Track what you've downloaded over time effectively.
 - **Global Search & Sorting:** Quickly find files by searching their names, and organizing them based on upload dates or sizes.
+- **Vercel Blob Support:** Cloud storage integration natively built-in for Vercel deployments.
 
 ## Credits & Community
 
