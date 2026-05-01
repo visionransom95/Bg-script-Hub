@@ -1,10 +1,10 @@
 import React, { useState, useRef } from "react";
-import { UploadCloud, CheckCircle, AlertCircle, File as FileIcon, Lock, X } from "lucide-react";
+import { UploadCloud, CheckCircle, AlertCircle, File as FileIcon, Lock, X, Layout, Code, Database, Globe, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function Home() {
-  const [files, setFiles] = useState<File[]>([]);
+  const [uploadQueue, setUploadQueue] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isEncrypted, setIsEncrypted] = useState(false);
@@ -14,7 +14,7 @@ export default function Home() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+      setUploadQueue(prev => [...prev, ...Array.from(e.target.files!)]);
       setUploadStatus('idle');
       setUploadProgress(0);
       setErrorMessage('');
@@ -24,7 +24,7 @@ export default function Home() {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+      setUploadQueue(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
       setUploadStatus('idle');
       setUploadProgress(0);
       setErrorMessage('');
@@ -32,12 +32,12 @@ export default function Home() {
   };
 
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-    if (files.length === 1) setUploadStatus('idle');
+    setUploadQueue(prev => prev.filter((_, i) => i !== index));
+    if (uploadQueue.length === 1) setUploadStatus('idle');
   };
 
   const handleUpload = async () => {
-    if (files.length === 0) return;
+    if (uploadQueue.length === 0) return;
 
     setUploading(true);
     setUploadStatus('idle');
@@ -46,23 +46,27 @@ export default function Home() {
 
     let successCount = 0;
     
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    for (let i = 0; i < uploadQueue.length; i++) {
+        const file = uploadQueue[i];
         const formData = new FormData();
         formData.append("file", file);
         formData.append("isEncrypted", isEncrypted.toString());
 
         try {
-            await axios.post("/api/upload", formData, {
-                onUploadProgress: (progressEvent) => {
-                  if (progressEvent.total) {
-                    const fileProg = (progressEvent.loaded / progressEvent.total) * 100;
-                    const overallProg = ((i * 100) + fileProg) / files.length;
-                    setUploadProgress(Math.round(overallProg));
-                  }
-                }
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                body: formData
             });
-            successCount++;
+
+            if (res.ok) {
+                successCount++;
+            } else {
+                console.error("Failed to upload", file.name);
+            }
+            
+            // Artificial progress calculation since fetch doesn't have onUploadProgress out of the box easily
+            const overallProg = ((i + 1) * 100) / uploadQueue.length;
+            setUploadProgress(Math.round(overallProg));
         } catch (error: any) {
              console.error("Failed to upload", file.name, error);
         }
@@ -70,13 +74,13 @@ export default function Home() {
 
     setUploading(false);
     
-    if (successCount === files.length) {
+    if (successCount === uploadQueue.length) {
         setUploadStatus('success');
-        setFiles([]);
+        setUploadQueue([]);
     } else if (successCount > 0) {
         setUploadStatus('partial');
-        setErrorMessage(`Uploaded ${successCount} files, but ${files.length - successCount} failed.`);
-        setFiles([]);
+        setErrorMessage(`Uploaded ${successCount} files, but ${uploadQueue.length - successCount} failed.`);
+        setUploadQueue([]);
     } else {
         setUploadStatus('error');
         setErrorMessage("Error uploading files. Please try again.");
@@ -86,152 +90,329 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div>
-          <h1 className="text-6xl sm:text-7xl font-bold tracking-tighter leading-tight mb-6">
-            Secure File<br />Storage Hub
-          </h1>
-          <p className="text-lg text-gray-600 mb-8 max-w-lg">
-            Upload, store, and share your scripts and files effortlessly. A simple, secure platform built for everyone.
-          </p>
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-8 max-w-lg">
-            <h3 className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" /> Lifetime Storage Enabled
-            </h3>
-            <p className="text-xs text-blue-700 leading-relaxed">
-              Files are now permanently stored using <strong>Firebase Storage</strong> and metadata is managed with <strong>Firestore</strong>. Your scripts and files are safe and secure across server restarts.
-            </p>
-          </div>
-          <div className="flex gap-4">
-            <button 
-              onClick={() => document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth' })}
-              className="bg-black text-white px-8 py-3 rounded-full font-semibold uppercase tracking-widest text-sm hover:bg-gray-800 transition-colors"
-            >
-              Start Uploading
-            </button>
-            <Link 
-              to="/download"
-              className="bg-white text-black border border-black px-8 py-3 rounded-full font-semibold uppercase tracking-widest text-sm hover:bg-gray-50 transition-colors"
-            >
-              Browse Files
-            </Link>
-          </div>
-        </div>
-
-        <div id="upload-section" className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
-          {uploading && (
-             <div className="absolute top-0 left-0 h-1 bg-blue-100 w-full">
-               <div 
-                 className="h-full bg-blue-600 transition-all duration-300 ease-out"
-                 style={{ width: `${uploadProgress}%` }}
-               />
-             </div>
-          )}
-          
-          <h2 className="text-2xl font-bold mb-6">Upload a File</h2>
-          
-          <div 
-            className={`border-2 border-dashed rounded-2xl p-10 text-center transition-colors cursor-pointer ${
-              files.length > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-black hover:bg-gray-50'
-            }`}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+    <div className="min-h-screen data-grid-bg">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6 }}
           >
-            <input 
-              type="file" 
-              multiple
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              onClick={(e) => e.stopPropagation()}
-              accept=".js,.py,.lua,.sh,.txt,.md,.pdf,.png,.jpg,.jpeg,.zip,.rar"
-              className="hidden" 
-            />
-            {files.length > 0 ? (
-              <div className="flex flex-col gap-3 w-full max-w-sm mx-auto">
-                <p className="text-sm font-semibold text-gray-700">{files.length} file{files.length !== 1 ? 's' : ''} selected</p>
-                <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
-                  {files.map((file, idx) => (
-                    <div key={idx} className="flex flex-col items-start gap-1 p-3 bg-white border border-gray-100 rounded-xl">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <FileIcon className="h-5 w-5 text-blue-500 shrink-0" />
-                          <span className="font-medium text-black text-sm truncate">{file.name}</span>
-                        </div>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
-                          className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-brand-accent text-xs font-bold uppercase tracking-wider mb-6">
+              <Globe className="w-3 h-3" /> Cloud Native Storage
+            </div>
+            <h1 className="text-6xl sm:text-7xl font-bold tracking-tighter leading-[0.9] mb-8 text-brand-ink">
+              Secure File<br />Storage Hub
+            </h1>
+            <p className="text-lg text-gray-600 mb-10 max-w-lg leading-relaxed">
+              A high-performance repository for your scripts, files, and documents. Simplified encryption, multi-versioning, and lifetime storage powered by Firebase.
+            </p>
+            
+            <div className="flex flex-wrap gap-4 mb-12">
+              <button 
+                onClick={() => document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="bg-brand-ink text-brand-bg px-8 py-4 rounded-full font-bold uppercase tracking-widest text-sm hover:scale-105 transition-all shadow-xl shadow-brand-ink/10"
+              >
+                Launch Uploader
+              </button>
+              <Link 
+                to="/download"
+                className="bg-white border border-brand-ink/10 px-8 py-4 rounded-full font-bold uppercase tracking-widest text-sm hover:bg-gray-50 transition-all flex items-center gap-2"
+              >
+                Browse Files <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 brutal-card rounded-2xl">
+                <Database className="w-6 h-6 text-brand-accent mb-2" />
+                <h4 className="font-bold text-sm uppercase mb-1 font-mono">Storage Layer</h4>
+                <p className="text-[10px] text-gray-500 leading-tight">Permanent storage using Firebase infrastructure. No data wipes on restart.</p>
+              </div>
+              <div className="p-4 brutal-card rounded-2xl">
+                <Lock className="w-6 h-6 text-brand-accent mb-2" />
+                <h4 className="font-bold text-sm uppercase mb-1 font-mono">Encryption</h4>
+                <p className="text-[10px] text-gray-500 leading-tight">Optional server-side encryption for sensitive scripts and configuration files.</p>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            id="upload-section"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="bg-white p-8 rounded-[40px] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 relative overflow-hidden"
+          >
+            {uploading && (
+               <div className="absolute top-0 left-0 h-1.5 bg-gray-100 w-full z-20">
+                 <motion.div 
+                   className="h-full bg-brand-accent"
+                   initial={{ width: 0 }}
+                   animate={{ width: `${uploadProgress}%` }}
+                 />
+               </div>
+            )}
+            
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-bold tracking-tight">Upload Terminal</h2>
+              <div className="px-3 py-1 rounded-full bg-gray-100 text-[10px] font-bold uppercase tracking-tighter text-gray-500 border border-gray-200">
+                PROD v2.4
+              </div>
+            </div>
+            
+            <div 
+              className={`border-2 border-dashed rounded-[32px] p-12 text-center transition-all cursor-pointer ${
+                uploadQueue.length > 0 ? 'border-brand-accent bg-brand-accent/5' : 'border-gray-200 hover:border-brand-accent hover:bg-gray-50'
+              }`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input 
+                type="file" 
+                multiple
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                onClick={(e) => e.stopPropagation()}
+                accept=".js,.py,.lua,.sh,.txt,.md,.pdf,.png,.jpg,.jpeg,.zip,.rar"
+                className="hidden" 
+              />
+              {uploadQueue.length > 0 ? (
+                <div className="flex flex-col gap-4 w-full">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent">{uploadQueue.length} ITEMS QUEUED</p>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setUploadQueue([]); }}
+                      className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-gray-200">
+                    <AnimatePresence>
+                      {uploadQueue.map((file, idx) => (
+                        <motion.div 
+                          key={`${file.name}-${idx}`}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm"
                         >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <span className="text-[10px] text-gray-400 uppercase font-semibold pl-7">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </div>
-                  ))}
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="p-2 bg-brand-accent/10 rounded-lg text-brand-accent">
+                              <FileIcon className="h-4 w-4 shrink-0" />
+                            </div>
+                            <div className="text-left overflow-hidden">
+                              <p className="font-bold text-gray-900 text-xs truncate">{file.name}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                            className="p-1.5 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded-lg transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                    className="p-4 border-2 border-dashed border-brand-ink/5 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:border-brand-accent hover:text-brand-accent transition-all"
+                  >
+                    + Add More Resources
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-4 py-8">
+                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                    <UploadCloud className="h-10 w-10 text-gray-300" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-gray-900 font-bold tracking-tight">Drop files binary data</span>
+                    <span className="block text-xs text-gray-400 uppercase tracking-widest">or click to scan file system</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {['JS', 'PY', 'LUA', 'ZIP'].map(ext => (
+                      <span key={ext} className="px-2 py-1 rounded bg-gray-50 border border-gray-100 text-[10px] font-mono text-gray-400">{ext}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {uploadQueue.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-6 p-4 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg transition-colors ${isEncrypted ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-400'}`}>
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-900 uppercase">Encryption Layer</p>
+                    <p className="text-[10px] text-gray-400">Secure assets before transmission</p>
+                  </div>
                 </div>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                  className="text-xs text-blue-600 font-semibold uppercase tracking-wider hover:underline mt-2"
+                  onClick={() => setIsEncrypted(!isEncrypted)}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${isEncrypted ? 'bg-brand-accent' : 'bg-gray-300'}`}
                 >
-                  + Add more files
+                  <motion.div 
+                    className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                    animate={{ x: isEncrypted ? 24 : 0 }}
+                  />
                 </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <UploadCloud className="h-12 w-12 text-gray-400" />
-                <span className="text-gray-600 font-medium tracking-wide">Drag & drop your files here</span>
-                <span className="text-xs text-gray-400 uppercase tracking-widest">or click to browse</span>
-                <span className="text-[10px] text-gray-400 font-medium mt-1">Supported: JS, PY, LUA, TXT, PDF, ZIP, PNG, JPG</span>
-              </div>
+              </motion.div>
             )}
-          </div>
-          
-          {files.length > 0 && (
-            <div className="mt-4 flex items-center gap-2 px-1">
-              <input 
-                type="checkbox" 
-                id="isEncrypted" 
-                checked={isEncrypted}
-                onChange={(e) => setIsEncrypted(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-              />
-              <label htmlFor="isEncrypted" className="text-sm font-medium text-gray-700 flex items-center gap-1 cursor-pointer">
-                <Lock className="h-3 w-3 text-gray-500" /> Mark as Encrypted
-              </label>
-            </div>
-          )}
 
-          <div className="mt-6 flex flex-col gap-2">
-            <button 
-              onClick={handleUpload}
-              disabled={files.length === 0 || uploading}
-              className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors relative"
+            <div className="mt-8">
+              <button 
+                onClick={handleUpload}
+                disabled={uploadQueue.length === 0 || uploading}
+                className="w-full bg-brand-accent text-white py-5 rounded-[24px] font-bold uppercase tracking-widest text-xs disabled:opacity-30 disabled:grayscale hover:brightness-110 active:scale-[0.98] transition-all shadow-xl shadow-brand-accent/20 overflow-hidden relative"
+              >
+                <div className="relative z-10 flex items-center justify-center gap-2">
+                  {uploading ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full" />
+                      <span>Transmitting Flux... {uploadProgress}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Execute Upload</span>
+                    </>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {uploadStatus !== 'idle' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mt-6 p-5 rounded-2xl border flex items-start gap-4 ${
+                  uploadStatus === 'success' ? 'bg-green-50 border-green-100 text-green-800' : 
+                  uploadStatus === 'partial' ? 'bg-yellow-50 border-yellow-100 text-yellow-800' :
+                  'bg-red-50 border-red-100 text-red-800'
+                }`}
+              >
+                {uploadStatus === 'success' ? <CheckCircle className="shrink-0 w-5 h-5 mt-0.5" /> : <AlertCircle className="shrink-0 w-5 h-5 mt-0.5" />}
+                <div>
+                  <p className="font-bold text-xs uppercase mb-1">{uploadStatus === 'success' ? 'Synchronized' : 'Operational Warning'}</p>
+                  <p className="text-xs opacity-80 leading-relaxed">
+                    {uploadStatus === 'success' ? 'All assets successfully committed to the cloud repository.' : errorMessage}
+                  </p>
+                  {uploadStatus === 'success' && (
+                    <Link to="/download" className="inline-flex items-center gap-2 mt-3 font-bold text-[10px] uppercase tracking-wider text-green-700 hover:underline">
+                      View Directory <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Showcase Section */}
+        <div className="mt-32">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
             >
-              <span className="relative z-10">{uploading ? `Uploading... ${uploadProgress}%` : "Upload File"}</span>
-            </button>
+              <p className="text-brand-accent font-bold uppercase tracking-[0.2em] text-[10px] mb-2">INTERFACE SHOWCASE</p>
+              <h2 className="text-4xl font-bold tracking-tighter">Engineered for Performance</h2>
+            </motion.div>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              className="text-gray-500 max-w-sm text-sm"
+            >
+              Our interface is designed with a technical focus, providing detailed metadata and robust file management tools.
+            </motion.p>
           </div>
 
-          {uploadStatus === 'success' && (
-            <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-              <CheckCircle className="h-5 w-5" />
-              <span className="font-medium text-sm">File uploaded successfully! Check the Downloads page.</span>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="md:col-span-2 group relative"
+            >
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-accent to-purple-600 rounded-[40px] blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white rounded-[38px] border border-brand-ink/5 p-4 sm:p-8 aspect-video overflow-hidden shadow-2xl">
+                <div className="flex items-center gap-2 mb-6 border-b border-gray-100 pb-4">
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-400"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
+                  </div>
+                  <div className="ml-4 px-3 py-1 rounded bg-gray-50 border border-gray-200 text-[10px] font-mono text-gray-400 truncate flex-1 md:max-w-xs">/root/system/repository/index.js</div>
+                </div>
+                <div className="grid grid-cols-12 gap-8">
+                  <div className="col-span-3 space-y-4 hidden sm:block">
+                    {[1,2,3,4,5].map(i => (
+                      <div key={i} className="h-3 w-full bg-gray-100 rounded-full" />
+                    ))}
+                    <div className="h-20 w-full bg-brand-accent/5 rounded-2xl border border-brand-accent/10" />
+                  </div>
+                  <div className="col-span-12 sm:col-span-9 space-y-3 font-mono text-[10px] text-brand-ink/70">
+                    <p className="text-blue-500 font-bold">import <span className="text-gray-900">{`{ Repository }`}</span> from <span className="text-brand-accent">"./core"</span>;</p>
+                    <p className="pl-4">const config = <span className="text-gray-900">{`{`}</span></p>
+                    <p className="pl-8">version: <span className="text-orange-500">"2.0.1"</span>,</p>
+                    <p className="pl-8">status: <span className="text-green-500">"ACTIVE"</span>,</p>
+                    <p className="pl-8">integrity: <span className="text-blue-500">true</span></p>
+                    <p className="pl-4 text-gray-900">{`};`}</p>
+                    <p className="mt-4 text-gray-300">// Initializing secure storage handshake...</p>
+                    <p className="text-purple-600">export default <span className="text-gray-900">async</span> function connect() {` {`}</p>
+                    <div className="h-4 w-1/2 bg-gray-50 rounded" />
+                    <div className="h-4 w-3/4 bg-gray-50 rounded" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
 
-          {uploadStatus === 'partial' && (
-            <div className="mt-4 p-4 bg-yellow-50 text-yellow-700 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-              <AlertCircle className="h-5 w-5" />
-              <span className="font-medium text-sm">{errorMessage}</span>
-            </div>
-          )}
+            <div className="space-y-8">
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="bg-brand-ink text-brand-bg rounded-[32px] p-8 shadow-2xl relative overflow-hidden group"
+              >
+                <div className="relative z-10">
+                  <Layout className="w-8 h-8 text-brand-accent mb-4" />
+                  <h3 className="text-lg font-bold mb-2">Modern Panel</h3>
+                  <p className="text-[10px] text-gray-400 leading-relaxed font-medium">Adaptive GUI optimized for both desktop heavy-duty management and mobile quick-access previews.</p>
+                </div>
+                <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-brand-accent/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
+              </motion.div>
 
-          {uploadStatus === 'error' && (
-            <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-              <AlertCircle className="h-5 w-5" />
-              <span className="font-medium text-sm">{errorMessage}</span>
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 }}
+                className="bg-white border border-brand-ink/5 rounded-[32px] p-8 shadow-sm group hover:shadow-xl transition-all"
+              >
+                <Code className="w-8 h-8 text-brand-accent mb-4" />
+                <h3 className="text-lg font-bold mb-2">Metadata Deep-Dive</h3>
+                <p className="text-[10px] text-gray-500 leading-relaxed">Full visibility into version history, physical storage paths, and cryptographic integrity checks.</p>
+                <div className="mt-6 flex gap-2 overflow-hidden">
+                  <div className="px-2 py-0.5 rounded bg-brand-accent/10 text-[8px] font-bold text-brand-accent font-mono uppercase tracking-tighter">REACT</div>
+                  <div className="px-2 py-0.5 rounded bg-orange-100 text-[8px] font-bold text-orange-600 font-mono uppercase tracking-tighter">PYTHON</div>
+                  <div className="px-2 py-0.5 rounded bg-blue-100 text-[8px] font-bold text-blue-600 font-mono uppercase tracking-tighter">TS</div>
+                </div>
+              </motion.div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

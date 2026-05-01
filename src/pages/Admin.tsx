@@ -40,7 +40,7 @@ export default function Admin() {
 
   // Dashboard State
   const [searchQuery, setSearchQuery] = useState("");
-  const [files, setFiles] = useState<FileDetails[]>([]);
+  const [fileEntries, setFileEntries] = useState<FileDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   
@@ -58,7 +58,7 @@ export default function Admin() {
       const res = await fetch('/api/files');
       if (res.ok) {
         const data = await res.json();
-        setFiles(data);
+        setFileEntries(data);
       } else {
         setError('Failed to load files.');
       }
@@ -111,7 +111,7 @@ export default function Admin() {
         }
       });
       if (res.ok) {
-        setFiles(f => f.filter(file => file.id !== identifier && file.filename !== identifier));
+        setFileEntries(f => f.filter(file => file.id !== identifier && file.filename !== identifier));
         if (selectedFile?.id === identifier || selectedFile?.filename === identifier) {
           setSelectedFile(null);
         }
@@ -123,7 +123,7 @@ export default function Admin() {
     }
   };
 
-  const filteredFiles = files.filter(f => 
+  const filteredFiles = fileEntries.filter(f => 
     f.originalName.toLowerCase().includes(searchQuery.toLowerCase()) || 
     f.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );

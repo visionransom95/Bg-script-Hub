@@ -10,9 +10,21 @@ import { Readable } from 'stream';
 import admin from "firebase-admin";
 
 // Initialize Firebase Admin
-if (!admin.apps.length) {
+let configData: any = null;
+try {
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    configData = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  }
+} catch (err) {
+  console.error("Failed to read Firebase config", err);
+}
+
+let db: admin.firestore.Firestore | null = null;
+let bucket: any = null;
+
+if (!admin.apps.length && configData) {
   try {
-    const configData = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf-8'));
     admin.initializeApp({
       projectId: configData.projectId,
       storageBucket: configData.storageBucket
@@ -23,9 +35,14 @@ if (!admin.apps.length) {
   }
 }
 
-const db = admin.firestore();
+if (admin.apps.length) {
+  db = configData?.firestoreDatabaseId 
+    ? admin.firestore(configData.firestoreDatabaseId) 
+    : admin.firestore();
+  bucket = admin.storage().bucket();
+}
+
 const storage = admin.storage();
-const bucket = storage.bucket();
 
 let driveClient: any = null;
 let DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
@@ -86,17 +103,19 @@ let cachedDriveMetadataId: string | null = null;
 
 async function getMetadata(): Promise<Record<string, FileEntry>> {
   // Try Firestore first
-  try {
-    const snapshot = await db.collection('files').get();
-    if (!snapshot.empty) {
-      const data: Record<string, FileEntry> = {};
-      snapshot.forEach(doc => {
-        data[doc.id] = doc.data() as FileEntry;
-      });
-      return data;
+  if (db) {
+    try {
+      const snapshot = await db.collection('files').get();
+      if (!snapshot.empty) {
+        const data: Record<string, FileEntry> = {};
+        snapshot.forEach(doc => {
+          data[doc.id] = doc.data() as FileEntry;
+        });
+        return data;
+      }
+    } catch (err) {
+      console.error("Firestore metadata fetch failed:", err);
     }
-  } catch (err) {
-    console.error("Firestore metadata fetch failed:", err);
   }
 
   if (driveClient && DRIVE_FOLDER_ID) {
@@ -150,16 +169,18 @@ async function getMetadata(): Promise<Record<string, FileEntry>> {
 
 async function saveMetadata(data: Record<string, FileEntry>) {
   // Save to Firestore
-  try {
-    const batch = db.batch();
-    for (const [id, entry] of Object.entries(data)) {
-      const docRef = db.collection('files').doc(id);
-      batch.set(docRef, entry);
+  if (db) {
+    try {
+      const batch = db.batch();
+      for (const [id, entry] of Object.entries(data)) {
+        const docRef = db.collection('files').doc(id);
+        batch.set(docRef, entry);
+      }
+      await batch.commit();
+      console.log("Metadata synced to Firestore");
+    } catch (err) {
+      console.error("Firestore metadata save failed:", err);
     }
-    await batch.commit();
-    console.log("Metadata synced to Firestore");
-  } catch (err) {
-    console.error("Firestore metadata save failed:", err);
   }
 
   if (driveClient && DRIVE_FOLDER_ID) {
@@ -251,20 +272,22 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     let firebaseUrl: string | undefined;
     
     // Always prefer Firebase Storage now
-    try {
-      storagePath = `uploads/${internalFilename}`;
-      const file = bucket.file(storagePath);
-      await file.save(fileData, {
-        metadata: {
-          contentType: req.file.mimetype,
-        },
-      });
-      // Make it public or get a signed URL
-      // For simplicity in this app, we'll use the path and fetch it server-side for now
-      // Or we can use getDownloadURL if it were client side, but server side we can just use the path
-      console.log(`Uploaded to Firebase Storage: ${storagePath}`);
-    } catch (err) {
-      console.error("Firebase Storage upload failed:", err);
+    if (bucket) {
+      try {
+        storagePath = `uploads/${internalFilename}`;
+        const file = bucket.file(storagePath);
+        await file.save(fileData, {
+          metadata: {
+            contentType: req.file.mimetype,
+          },
+        });
+        console.log(`Uploaded to Firebase Storage: ${storagePath}`);
+      } catch (err) {
+        console.error("Firebase Storage upload failed:", err);
+      }
+    }
+    
+    if (!storagePath) {
       // Fallback logic
       if (driveClient && DRIVE_FOLDER_ID) {
         try {
@@ -391,7 +414,7 @@ app.get("/api/download/:filename", async (req, res) => {
 
   let fileBuffer: Buffer | null = null;
   
-  if (storagePath && admin.apps.length) {
+  if (storagePath && bucket) {
     try {
       const file = bucket.file(storagePath);
       const [buffer] = await file.download();
@@ -496,7 +519,7 @@ app.delete("/api/files", async (req, res) => {
   const metadata = await getMetadata();
   
   const deleteVersion = async (v: FileVersion) => {
-    if (v.storagePath && admin.apps.length) {
+    if (v.storagePath && bucket) {
       try { await bucket.file(v.storagePath).delete(); } catch (e) { console.error("Firebase delete failed", e); }
     } else if (driveClient && v.driveFileId) {
       try { await driveClient.files.delete({ fileId: v.driveFileId }); } catch (e) { console.error("Drive delete failed", e); }
