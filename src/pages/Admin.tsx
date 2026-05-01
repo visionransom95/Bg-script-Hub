@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, File as FileIcon, Trash2, Search, Database, Clock, Eye } from 'lucide-react';
+import { Lock, File as FileIcon, Trash2, Search, Database, Clock, Eye, FileCode2, FileJson, FileTerminal, FileText, FileImage, FileAudio, FileVideo, FileArchive } from 'lucide-react';
 import { saveAs } from 'file-saver';
 
 interface FileVersion {
@@ -28,6 +28,60 @@ function formatBytes(bytes: number, decimals = 2) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
+
+const getFileIcon = (filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'js':
+    case 'jsx':
+    case 'ts':
+    case 'tsx':
+    case 'html':
+    case 'css':
+      return <FileCode2 className="h-full w-full" />;
+    case 'py':
+    case 'lua':
+    case 'sh':
+    case 'rb':
+    case 'go':
+    case 'cpp':
+    case 'c':
+    case 'h':
+      return <FileTerminal className="h-full w-full" />;
+    case 'json':
+      return <FileJson className="h-full w-full" />;
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+      return <FileArchive className="h-full w-full" />;
+    case 'pdf':
+    case 'doc':
+    case 'docx':
+    case 'txt':
+    case 'md':
+      return <FileText className="h-full w-full" />;
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'gif':
+    case 'svg':
+    case 'webp':
+      return <FileImage className="h-full w-full" />;
+    case 'mp3':
+    case 'wav':
+    case 'ogg':
+      return <FileAudio className="h-full w-full" />;
+    case 'mp4':
+    case 'mov':
+    case 'avi':
+    case 'mkv':
+      return <FileVideo className="h-full w-full" />;
+    default:
+      return <FileIcon className="h-full w-full" />;
+  }
+};
 
 export default function Admin() {
   const [sessionToken, setSessionToken] = useState<string | null>(localStorage.getItem("adminToken"));
@@ -242,8 +296,8 @@ export default function Admin() {
                     onClick={() => setSelectedFile(file)}
                   >
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="p-2 bg-gray-100 rounded-lg shrink-0">
-                        <FileIcon className="h-6 w-6 text-gray-600" />
+                      <div className="p-2 bg-gray-100 rounded-lg shrink-0 w-10 h-10 flex items-center justify-center">
+                        {getFileIcon(file.originalName)}
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-bold text-sm truncate">{file.originalName}</h3>
@@ -285,8 +339,8 @@ export default function Admin() {
            {selectedFile ? (
              <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sticky top-24">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="p-3 bg-red-100 rounded-xl text-red-600">
-                    <FileIcon className="h-8 w-8" />
+                  <div className="p-3 bg-red-100 rounded-xl text-red-600 w-14 h-14 flex items-center justify-center">
+                    {getFileIcon(selectedFile.originalName)}
                   </div>
                   <div className="overflow-hidden">
                     <h2 className="font-bold text-lg truncate" title={selectedFile.originalName}>{selectedFile.originalName}</h2>

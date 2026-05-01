@@ -90,59 +90,60 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen data-grid-bg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+    <div className="min-h-screen data-grid-bg pt-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-32">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
           <motion.div 
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-brand-accent text-xs font-bold uppercase tracking-wider mb-6">
-              <Globe className="w-3 h-3" /> Cloud Native Storage
+            <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-brand-accent/5 border border-brand-accent/10 text-brand-accent text-[10px] font-bold uppercase tracking-[0.2em] mb-8 cyber-glow">
+              <Globe className="w-3.5 h-3.5" /> High-Density Infrastructure
             </div>
-            <h1 className="text-6xl sm:text-7xl font-bold tracking-tighter leading-[0.9] mb-8 text-brand-ink">
-              Secure File<br />Storage Hub
+            <h1 className="text-8xl sm:text-9xl font-bold tracking-tighter leading-[0.8] mb-10 text-brand-ink">
+              BG<br />
+              <span className="bg-gradient-to-r from-brand-accent to-indigo-600 bg-clip-text text-transparent">Script Hub</span>
             </h1>
-            <p className="text-lg text-gray-600 mb-10 max-w-lg leading-relaxed">
-              A high-performance repository for your scripts, files, and documents. Simplified encryption, multi-versioning, and lifetime storage powered by Firebase.
+            <p className="text-xl text-gray-500 mb-12 max-w-lg leading-relaxed font-medium">
+              A high-performance repository for your scripts, files, and configuration data. Optimized for speed, security, and architectural permanence.
             </p>
             
-            <div className="flex flex-wrap gap-4 mb-12">
+            <div className="flex flex-wrap gap-5 mb-16">
               <button 
                 onClick={() => document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="bg-brand-ink text-brand-bg px-8 py-4 rounded-full font-bold uppercase tracking-widest text-sm hover:scale-105 transition-all shadow-xl shadow-brand-ink/10"
+                className="bg-brand-ink text-brand-bg px-10 py-5 rounded-full font-bold uppercase tracking-widest text-[11px] hover:bg-brand-accent transition-all shadow-2xl shadow-brand-ink/20 transform hover:-translate-y-1 active:scale-[0.98]"
               >
-                Launch Uploader
+                Launch Interface
               </button>
               <Link 
                 to="/download"
-                className="bg-white border border-brand-ink/10 px-8 py-4 rounded-full font-bold uppercase tracking-widest text-sm hover:bg-gray-50 transition-all flex items-center gap-2"
+                className="bg-white border border-brand-ink/10 px-10 py-5 rounded-full font-bold uppercase tracking-widest text-[11px] hover:bg-gray-50 transition-all flex items-center gap-3 group shadow-lg shadow-brand-ink/5"
               >
-                Browse Files <ArrowRight className="w-4 h-4" />
+                Browse Data <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 brutal-card rounded-2xl">
-                <Database className="w-6 h-6 text-brand-accent mb-2" />
-                <h4 className="font-bold text-sm uppercase mb-1 font-mono">Storage Layer</h4>
-                <p className="text-[10px] text-gray-500 leading-tight">Permanent storage using Firebase infrastructure. No data wipes on restart.</p>
+            <div className="grid grid-cols-2 gap-6 max-w-md">
+              <div className="p-6 brutal-card rounded-[2.5rem]">
+                <Database className="w-7 h-7 text-brand-accent mb-4" />
+                <h4 className="font-bold text-xs uppercase mb-2 tracking-widest">Metadata Core</h4>
+                <p className="text-[10px] text-gray-400 leading-normal font-medium">Atomic synchronization powered by Firestore persistence. Real-time updates.</p>
               </div>
-              <div className="p-4 brutal-card rounded-2xl">
-                <Lock className="w-6 h-6 text-brand-accent mb-2" />
-                <h4 className="font-bold text-sm uppercase mb-1 font-mono">Encryption</h4>
-                <p className="text-[10px] text-gray-500 leading-tight">Optional server-side encryption for sensitive scripts and configuration files.</p>
+              <div className="p-6 brutal-card rounded-[2.5rem]">
+                <Lock className="w-7 h-7 text-brand-accent mb-4" />
+                <h4 className="font-bold text-xs uppercase mb-2 tracking-widest">Security Protocol</h4>
+                <p className="text-[10px] text-gray-400 leading-normal font-medium">Optional AES-256 equivalent server-side encryption for sensitive payloads.</p>
               </div>
             </div>
           </motion.div>
 
           <motion.div 
             id="upload-section"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="bg-white p-8 rounded-[40px] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 relative overflow-hidden"
+            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+            className="bg-white p-10 rounded-[3rem] shadow-[0_32px_80px_rgba(0,0,0,0.08)] border border-brand-ink/5 relative overflow-hidden"
           >
             {uploading && (
                <div className="absolute top-0 left-0 h-1.5 bg-gray-100 w-full z-20">
@@ -154,16 +155,16 @@ export default function Home() {
                </div>
             )}
             
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold tracking-tight">Upload Terminal</h2>
-              <div className="px-3 py-1 rounded-full bg-gray-100 text-[10px] font-bold uppercase tracking-tighter text-gray-500 border border-gray-200">
-                PROD v2.4
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-3xl font-bold tracking-tight">Upload Protocol</h2>
+              <div className="px-4 py-1.5 rounded-full bg-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-500 border border-gray-200">
+                ACTIVE HANDSHAKE
               </div>
             </div>
             
             <div 
-              className={`border-2 border-dashed rounded-[32px] p-12 text-center transition-all cursor-pointer ${
-                uploadQueue.length > 0 ? 'border-brand-accent bg-brand-accent/5' : 'border-gray-200 hover:border-brand-accent hover:bg-gray-50'
+              className={`border-2 border-dashed rounded-[2.5rem] p-16 text-center transition-all cursor-pointer ${
+                uploadQueue.length > 0 ? 'border-brand-accent bg-brand-accent/5' : 'border-gray-100 hover:border-brand-accent/30 hover:bg-gray-50'
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
@@ -179,40 +180,40 @@ export default function Home() {
                 className="hidden" 
               />
               {uploadQueue.length > 0 ? (
-                <div className="flex flex-col gap-4 w-full">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent">{uploadQueue.length} ITEMS QUEUED</p>
+                <div className="flex flex-col gap-6 w-full">
+                  <div className="flex items-center justify-between px-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-accent">{uploadQueue.length} Assets in Buffer</p>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setUploadQueue([]); }}
-                      className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:underline"
+                      className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 hover:text-red-700 transition-colors"
                     >
-                      Clear All
+                      Purge Buffer
                     </button>
                   </div>
-                  <div className="max-h-64 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-gray-200">
-                    <AnimatePresence>
+                  <div className="max-h-72 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-200">
+                    <AnimatePresence initial={false}>
                       {uploadQueue.map((file, idx) => (
                         <motion.div 
                           key={`${file.name}-${idx}`}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm"
+                          className="flex items-center justify-between p-5 bg-white border border-gray-100 rounded-[24px] shadow-sm hover:shadow-md transition-shadow"
                         >
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="p-2 bg-brand-accent/10 rounded-lg text-brand-accent">
-                              <FileIcon className="h-4 w-4 shrink-0" />
+                          <div className="flex items-center gap-4 overflow-hidden">
+                            <div className="p-3 bg-brand-accent/10 rounded-xl text-brand-accent">
+                              <FileIcon className="h-5 w-5 shrink-0" />
                             </div>
                             <div className="text-left overflow-hidden">
-                              <p className="font-bold text-gray-900 text-xs truncate">{file.name}</p>
-                              <p className="text-[10px] text-gray-400 font-mono">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                              <p className="font-bold text-slate-800 text-xs truncate max-w-[120px] sm:max-w-[200px]">{file.name}</p>
+                              <p className="text-[10px] text-gray-400 font-mono mt-0.5">{(file.size / 1024 / 1024).toFixed(3)} MB</p>
                             </div>
                           </div>
                           <button 
                             onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
-                            className="p-1.5 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded-lg transition-colors"
+                            className="p-2 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded-xl transition-colors"
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-5 w-5" />
                           </button>
                         </motion.div>
                       ))}
@@ -220,23 +221,23 @@ export default function Home() {
                   </div>
                   <button 
                     onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                    className="p-4 border-2 border-dashed border-brand-ink/5 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:border-brand-accent hover:text-brand-accent transition-all"
+                    className="p-5 border-2 border-dashed border-gray-100 rounded-[24px] text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 hover:border-brand-accent/30 hover:text-brand-accent transition-all bg-gray-50/50"
                   >
-                    + Add More Resources
+                    + Register more assets
                   </button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-4 py-8">
-                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-2">
-                    <UploadCloud className="h-10 w-10 text-gray-300" />
+                <div className="flex flex-col items-center gap-6 py-12">
+                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-2 shadow-inner">
+                    <UploadCloud className="h-10 w-10 text-brand-accent/40" />
                   </div>
-                  <div className="space-y-1">
-                    <span className="block text-gray-900 font-bold tracking-tight">Drop files binary data</span>
-                    <span className="block text-xs text-gray-400 uppercase tracking-widest">or click to scan file system</span>
+                  <div className="space-y-2">
+                    <span className="block text-slate-800 text-lg font-bold tracking-tight">Drop resources here</span>
+                    <span className="block text-[10px] text-gray-400 uppercase tracking-[0.3em] font-bold">or browse local secure directory</span>
                   </div>
-                  <div className="flex gap-2">
-                    {['JS', 'PY', 'LUA', 'ZIP'].map(ext => (
-                      <span key={ext} className="px-2 py-1 rounded bg-gray-50 border border-gray-100 text-[10px] font-mono text-gray-400">{ext}</span>
+                  <div className="flex gap-3 mt-4">
+                    {['JS', 'PY', 'LUA', 'TS'].map(ext => (
+                      <span key={ext} className="px-3 py-1.5 rounded-lg bg-gray-100/50 border border-gray-100 text-[10px] font-mono text-gray-500 font-bold">{ext}</span>
                     ))}
                   </div>
                 </div>
@@ -245,47 +246,48 @@ export default function Home() {
             
             {uploadQueue.length > 0 && (
               <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-6 p-4 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-between"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mt-8 p-6 rounded-[2.5rem] bg-slate-900 border border-slate-800 flex items-center justify-between shadow-xl"
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg transition-colors ${isEncrypted ? 'bg-orange-100 text-orange-600' : 'bg-gray-200 text-gray-400'}`}>
-                    <Lock className="w-4 h-4" />
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl transition-all ${isEncrypted ? 'bg-brand-accent text-white cyber-glow' : 'bg-slate-800 text-slate-500'}`}>
+                    <Lock className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-gray-900 uppercase">Encryption Layer</p>
-                    <p className="text-[10px] text-gray-400">Secure assets before transmission</p>
+                    <p className="text-xs font-bold text-white uppercase tracking-widest">End-to-End Vault</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Encrypt payloads before ingestion</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setIsEncrypted(!isEncrypted)}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${isEncrypted ? 'bg-brand-accent' : 'bg-gray-300'}`}
+                  className={`w-14 h-7 rounded-full transition-all relative ${isEncrypted ? 'bg-brand-accent' : 'bg-slate-700'}`}
                 >
                   <motion.div 
-                    className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm"
-                    animate={{ x: isEncrypted ? 24 : 0 }}
+                    className="absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-lg"
+                    animate={{ x: isEncrypted ? 28 : 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />
                 </button>
               </motion.div>
             )}
 
-            <div className="mt-8">
+            <div className="mt-10">
               <button 
                 onClick={handleUpload}
                 disabled={uploadQueue.length === 0 || uploading}
-                className="w-full bg-brand-accent text-white py-5 rounded-[24px] font-bold uppercase tracking-widest text-xs disabled:opacity-30 disabled:grayscale hover:brightness-110 active:scale-[0.98] transition-all shadow-xl shadow-brand-accent/20 overflow-hidden relative"
+                className="w-full bg-brand-accent text-white py-6 rounded-[2.5rem] font-bold uppercase tracking-[0.2em] text-[11px] disabled:opacity-20 disabled:grayscale hover:brightness-110 active:scale-[0.98] transition-all shadow-2xl shadow-brand-accent/20 overflow-hidden relative group"
               >
-                <div className="relative z-10 flex items-center justify-center gap-2">
+                <div className="relative z-10 flex items-center justify-center gap-3">
                   {uploading ? (
                     <>
-                      <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full" />
-                      <span>Transmitting Flux... {uploadProgress}%</span>
+                      <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                      <span>Writing to Database... {uploadProgress}%</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Execute Upload</span>
+                      <CheckCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                      <span>Execute Synchronization</span>
                     </>
                   )}
                 </div>

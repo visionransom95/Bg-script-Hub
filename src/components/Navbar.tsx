@@ -37,27 +37,30 @@ export default function Navbar() {
   );
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-brand-bg/80 backdrop-blur-xl border-b border-brand-ink/5">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-20">
+    <nav className="fixed top-6 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="glass-morphism rounded-[2.5rem] px-8 h-20 flex justify-between items-center shadow-2xl shadow-brand-ink/5 border border-brand-ink/5">
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="p-2 bg-brand-ink rounded-xl group-hover:bg-brand-accent transition-colors shadow-lg shadow-brand-ink/10">
+              <motion.div 
+                whileHover={{ rotate: 90 }}
+                className="p-2.5 bg-brand-ink rounded-2xl group-hover:bg-brand-accent transition-colors shadow-lg shadow-brand-ink/10"
+              >
                 <Cpu className="h-5 w-5 text-brand-bg" />
-              </div>
+              </motion.div>
               <div className="flex flex-col -space-y-1">
-                <span className="font-bold text-lg tracking-tighter text-brand-ink">BG SCRIPT</span>
-                <span className="text-[8px] font-bold text-brand-accent uppercase tracking-widest font-mono">CORE_STACK v2.4</span>
+                <span className="font-bold text-xl tracking-tighter text-brand-ink">BG SCRIPT</span>
+                <span className="text-[9px] font-bold text-brand-accent uppercase tracking-widest font-mono">STABLE v2.4</span>
               </div>
             </Link>
           </div>
           
-          <div className="hidden lg:flex items-center space-x-10">
+          <div className="hidden lg:flex items-center space-x-12">
             <NavLinks />
-            <div className="h-4 w-px bg-brand-ink/10 ml-4 mr-0"></div>
+            <div className="h-6 w-px bg-brand-ink/10 ml-2 mr-2"></div>
             <Link 
               to="/admin" 
-              className="px-5 py-2 rounded-full bg-brand-ink text-brand-bg text-[10px] font-bold uppercase tracking-widest hover:brightness-150 transition-all shadow-xl shadow-brand-ink/5"
+              className="px-6 py-2.5 rounded-full bg-brand-ink text-brand-bg text-[10px] font-bold uppercase tracking-widest hover:bg-brand-accent transition-all shadow-xl shadow-brand-ink/5"
             >
               Control Panel
             </Link>
@@ -66,7 +69,7 @@ export default function Navbar() {
           <div className="flex items-center lg:hidden gap-4">
              <Link 
               to="/admin" 
-              className="p-2 rounded-lg bg-brand-ink text-brand-bg"
+              className="p-2.5 rounded-xl bg-brand-ink text-brand-bg"
             >
               <Cpu className="w-4 h-4" />
             </Link>
