@@ -80,7 +80,7 @@ export default function Download() {
     }
     
     zip.generateAsync({ type: "blob" }).then((content) => {
-      saveAs(content, "bg-script-archive.zip");
+      saveAs(content, "bg-script-hub-archive.zip");
     });
   };
 

@@ -16,7 +16,7 @@ export default function Contact() {
         <div>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-6">Get in Touch</h1>
           <p className="text-lg text-gray-600 mb-10 max-w-lg leading-relaxed">
-            Have questions about BG Script? Need support or want to report an issue with a file? We're here to help.
+            Have questions about BG Script Hub? Need support or want to report an issue with a file? We're here to help.
           </p>
           
           <div className="space-y-8">

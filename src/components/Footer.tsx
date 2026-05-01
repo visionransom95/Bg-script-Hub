@@ -6,9 +6,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-4">
         <div className="flex items-center gap-2 text-black">
           <HardDrive className="h-5 w-5" />
-          <span className="font-bold">BG Script</span>
+          <span className="font-bold">BG Script Hub</span>
         </div>
-        <p>&copy; {new Date().getFullYear()} BG Script File Hub. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} BG Script Hub. All rights reserved.</p>
         <p className="text-xs max-w-md mx-auto">
           Providing secure and reliable file hosting and sharing capabilities. 
           Upload locally, download globally.

@@ -24,7 +24,7 @@ export default function Navbar() {
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-2">
               <HardDrive className="h-6 w-6 text-black" />
-              <span className="font-bold text-xl tracking-tight">BG Script</span>
+              <span className="font-bold text-xl tracking-tight">BG Script Hub</span>
             </Link>
           </div>
           

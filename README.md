@@ -1,6 +1,6 @@
-# BG Script File Hub
+# BG Script Hub
 
-BG Script File Hub is a secure and robust platform for storing, sharing, and downloading files and scripts. Built with a responsive design, it offers a seamless experience for uploading files locally and downloading them globally.
+BG Script Hub is a secure and robust platform for storing, sharing, and downloading files and scripts. Built with a responsive design, it offers a seamless experience for uploading files locally and downloading them globally.
 
 ## Features
 

@@ -5,7 +5,7 @@ export default function Info() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div className="text-center mb-16">
         <InfoIcon className="h-12 w-12 mx-auto mb-4" />
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">About BG Script</h1>
+        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">About BG Script Hub</h1>
         <p className="text-gray-500 uppercase tracking-widest text-sm font-semibold max-w-xl mx-auto">
           We provide a robust, no-nonsense file hosting and sharing platform for developers and users.
         </p>
