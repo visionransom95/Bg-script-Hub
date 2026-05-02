@@ -86,9 +86,23 @@ export default function Home() {
             if (res.ok) {
                 successCount++;
             } else {
-                const errorData = await res.json().catch(() => ({ error: 'Unknown server error' }));
-                console.error("Failed to upload", file.name, errorData.error);
-                setErrorMessage(prev => prev || `Failed to upload ${file.name}: ${errorData.error}`);
+                let errorText = 'Unknown server error';
+                try {
+                    const errorData = await res.json();
+                    errorText = errorData.error || errorData.message || 'Unknown server error';
+                } catch (e) {
+                    // If not JSON, it might be a Vercel text error (like 413 Payload Too Large)
+                    const text = await res.text().catch(() => '');
+                    if (res.status === 413) {
+                        errorText = "File too large (Vercel 4.5MB limit exceeded)";
+                    } else if (text.includes('Payload Too Large')) {
+                        errorText = "Payload Too Large";
+                    } else if (text.length > 0 && text.length < 200) {
+                        errorText = text;
+                    }
+                }
+                console.error("Failed to upload", file.name, errorText);
+                setErrorMessage(prev => prev ? prev + "\n" + `Failed to upload ${file.name}: ${errorText}` : `Failed to upload ${file.name}: ${errorText}`);
             }
             
             // Artificial progress calculation since fetch doesn't have onUploadProgress out of the box easily
@@ -96,6 +110,8 @@ export default function Home() {
             setUploadProgress(Math.round(overallProg));
         } catch (error: any) {
              console.error("Failed to upload", file.name, error);
+             const connErr = `Connection error for ${file.name}: ${error.message || 'Unknown error'}`;
+             setErrorMessage(prev => prev ? prev + "\n" + connErr : connErr);
         }
     }
 
@@ -333,7 +349,9 @@ export default function Home() {
               >
                 {uploadStatus === 'success' ? <CheckCircle className="shrink-0 w-5 h-5 mt-0.5" /> : <AlertCircle className="shrink-0 w-5 h-5 mt-0.5" />}
                 <div>
-                  <p className="font-bold text-xs uppercase mb-1">{uploadStatus === 'success' ? 'Synchronized' : 'Operational Warning'}</p>
+                  <p className="font-bold text-xs uppercase mb-1">
+                    {uploadStatus === 'success' ? 'Synchronized' : (uploadStatus === 'error' ? 'System Warning' : 'Operational Status')}
+                  </p>
                   <p className="text-xs opacity-80 leading-relaxed">
                     {uploadStatus === 'success' ? 'All assets successfully committed to the cloud repository.' : errorMessage}
                   </p>

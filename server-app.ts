@@ -170,10 +170,15 @@ async function getMetadata(): Promise<Record<string, FileEntry>> {
   
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
-      const blobMeta = await head('metadata.json');
-      const res = await fetch(blobMeta.downloadUrl, { cache: 'no-store' });
-      if (res.ok) {
-        vercelData = await res.json();
+      const blobs = await list();
+      const hasMetadata = blobs.blobs.some(b => b.pathname === 'metadata.json');
+      
+      if (hasMetadata) {
+        const blobMeta = await head('metadata.json');
+        const res = await fetch(blobMeta.downloadUrl, { cache: 'no-store' });
+        if (res.ok) {
+          vercelData = await res.json();
+        }
       }
     } catch (e) {
       console.error("Vercel Blob metadata fetch failed:", e);
@@ -364,13 +369,14 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       }
       try {
         if (!fs.existsSync(UPLOADS_DIR)) {
+          console.log(`Creating uploads directory: ${UPLOADS_DIR}`);
           fs.mkdirSync(UPLOADS_DIR, { recursive: true });
         }
         fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
         console.log(`Saved to local storage: ${internalFilename}`);
       } catch (fsErr: any) {
         console.error("Local storage write failed:", fsErr);
-        throw new Error(`Local storage write failed: ${fsErr.message}`);
+        throw new Error(`Local storage write failed (likely read-only filesystem). Please configure Vercel Blob or Firebase Storage. Details: ${fsErr.message}`);
       }
     }
     

@@ -5,9 +5,11 @@ export default function Footer() {
   return (
     <footer className="bg-white border-t border-gray-200 py-8 text-center text-sm tracking-wide text-gray-500">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-4 relative">
-        <div className="flex items-center gap-2 text-black">
-          <HardDrive className="h-5 w-5" />
-          <span className="font-bold">BG Script Hub</span>
+        <div className="flex items-center gap-3 text-black">
+          <div className="w-6 h-6 rounded-md bg-brand-ink flex items-center justify-center overflow-hidden">
+             <img src="/logo.png" alt="BG Script Hub" className="w-full h-full object-cover" />
+          </div>
+          <span className="font-bold tracking-tight">BG Script Hub</span>
         </div>
         <p>&copy; {new Date().getFullYear()} BG Script Hub. All rights reserved.</p>
         <p className="text-xs max-w-md mx-auto">

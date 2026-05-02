@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { HardDrive, Menu, X, Cpu } from "lucide-react";
+import { HardDrive, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -43,10 +43,18 @@ export default function Navbar() {
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-3 group">
               <motion.div 
-                whileHover={{ rotate: 90 }}
-                className="p-2.5 bg-brand-ink rounded-2xl group-hover:bg-brand-accent transition-colors shadow-lg shadow-brand-ink/10"
+                whileHover={{ scale: 1.05 }}
+                className="w-10 h-10 bg-brand-ink rounded-xl shadow-lg shadow-brand-ink/10 flex items-center justify-center overflow-hidden"
               >
-                <Cpu className="h-5 w-5 text-brand-bg" />
+                <img 
+                  src="/logo.png" 
+                  alt="BG Script Hub" 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>'; 
+                    (e.target as HTMLImageElement).className = 'w-6 h-6 object-contain';
+                  }}
+                />
               </motion.div>
               <div className="flex flex-col -space-y-1">
                 <span className="font-bold text-xl tracking-tighter text-brand-ink">BG SCRIPT</span>
@@ -67,12 +75,6 @@ export default function Navbar() {
           </div>
           
           <div className="flex items-center lg:hidden gap-4">
-             <Link 
-              to="/admin" 
-              className="p-2.5 rounded-xl bg-brand-ink text-brand-bg"
-            >
-              <Cpu className="w-4 h-4" />
-            </Link>
             <button onClick={toggleMenu} className="text-gray-500 hover:text-brand-ink p-2">
               {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
