@@ -10,6 +10,9 @@ import { Readable } from 'stream';
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 // Initialize Firebase Admin
 let configData: any = null;
@@ -86,13 +89,20 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 let keyBuffer: Buffer;
 if (process.env.ENCRYPTION_SECRET) {
   keyBuffer = Buffer.from(process.env.ENCRYPTION_SECRET.padEnd(32, '0').slice(0, 32));
+  console.log("Encryption secret loaded from environment.");
 } else {
   const keyFile = path.join(UPLOADS_DIR, 'secret.key');
   if (fs.existsSync(keyFile)) {
     keyBuffer = fs.readFileSync(keyFile);
+    console.log("Encryption secret loaded from local keyfile.");
   } else {
     keyBuffer = crypto.randomBytes(32);
-    fs.writeFileSync(keyFile, keyBuffer);
+    try {
+      fs.writeFileSync(keyFile, keyBuffer);
+      console.log("New encryption secret generated and saved locally.");
+    } catch (e) {
+      console.warn("Could not save encryption secret locally. Encryption will use a volatile key.");
+    }
   }
 }
 const CIPHER_ALGO = 'aes-256-cbc';
@@ -350,10 +360,13 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
 
     if (!storagePath && !driveFileId && !blobUrl) {
       if (isVercel) {
-        throw new Error("All configured storage providers failed or none are available for Vercel environment.");
+        console.warn("No persistent storage providers (Firebase, Drive, Blob) configured or used. Falling back to ephemeral /tmp storage.");
       }
-      // Last resort: Save to local disk (won't work reliably on Vercel serverless)
-      fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+      try {
+        fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+      } catch (fsErr: any) {
+        throw new Error(`Local storage write failed: ${fsErr.message}`);
+      }
     }
     
     const metadata = await getMetadata();
@@ -389,40 +402,45 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       url: `/api/download/${internalFilename}`,
       isEncrypted
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Upload failed", err);
-    res.status(500).json({ error: "Upload failed" });
+    res.status(500).json({ error: err.message || "Upload failed" });
   }
 });
 
 // List files
 app.get("/api/files", async (req, res) => {
-  const metadata = await getMetadata();
-  const fileDetails = [];
-  
-  for (const entry of Object.values(metadata)) {
-    if (entry.versions.length === 0) continue;
+  try {
+    const metadata = await getMetadata();
+    const fileDetails = [];
     
-    const sortedVersions = [...entry.versions].sort((a, b) => b.createdAt - a.createdAt);
-    const latestVersion = sortedVersions[0];
-    
-    fileDetails.push({
-      id: entry.id,
-      originalName: entry.originalName,
-      isEncrypted: entry.isEncrypted,
-      filename: latestVersion.filename,
-      size: latestVersion.size,
-      createdAt: latestVersion.createdAt,
-      url: `/api/download/${latestVersion.filename}`,
-      versions: sortedVersions.map(v => ({
-         ...v,
-         url: `/api/download/${v.filename}`
-      }))
-    });
-  }
+    for (const entry of Object.values(metadata)) {
+      if (!entry.versions || entry.versions.length === 0) continue;
+      
+      const sortedVersions = [...entry.versions].sort((a, b) => b.createdAt - a.createdAt);
+      const latestVersion = sortedVersions[0];
+      
+      fileDetails.push({
+        id: entry.id,
+        originalName: entry.originalName,
+        isEncrypted: entry.isEncrypted,
+        filename: latestVersion.filename,
+        size: latestVersion.size,
+        createdAt: latestVersion.createdAt,
+        url: `/api/download/${latestVersion.filename}`,
+        versions: sortedVersions.map(v => ({
+           ...v,
+           url: `/api/download/${v.filename}`
+        }))
+      });
+    }
 
-  fileDetails.sort((a, b) => b.createdAt - a.createdAt);
-  res.json(fileDetails);
+    fileDetails.sort((a, b) => b.createdAt - a.createdAt);
+    res.json(fileDetails);
+  } catch (err: any) {
+    console.error("Failed to list files:", err);
+    res.status(500).json({ error: "Failed to list files" });
+  }
 });
 
 // Download file

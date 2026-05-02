@@ -89,11 +89,11 @@ export default function Home() {
         setUploadQueue([]);
     } else if (successCount > 0) {
         setUploadStatus('partial');
-        setErrorMessage(`Uploaded ${successCount} files, but ${uploadQueue.length - successCount} failed.`);
+        setErrorMessage(prev => prev || `Uploaded ${successCount} files, but ${uploadQueue.length - successCount} failed.`);
         setUploadQueue([]);
     } else {
         setUploadStatus('error');
-        setErrorMessage("Error uploading files. Please try again.");
+        setErrorMessage(prev => prev || "Error uploading files. Please try again.");
     }
     
     setTimeout(() => setUploadProgress(0), 1000);
