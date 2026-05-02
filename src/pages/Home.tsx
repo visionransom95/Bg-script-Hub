@@ -53,6 +53,14 @@ export default function Home() {
         formData.append("isEncrypted", isEncrypted.toString());
 
         try {
+            // Vercel Serverless Function limit is 4.5MB. 
+            // Most files will fail if they are larger than this when sent to a standard serverless function.
+            const VERCEL_LIMIT = 4.5 * 1024 * 1024;
+            if (file.size > VERCEL_LIMIT && window.location.hostname.includes('vercel.app')) {
+                setErrorMessage(`${file.name} is too large for Vercel upload (max 4.5MB). Please use a smaller file or host on a platform with higher limits.`);
+                continue;
+            }
+
             const res = await fetch("/api/upload", {
                 method: "POST",
                 body: formData
@@ -61,7 +69,9 @@ export default function Home() {
             if (res.ok) {
                 successCount++;
             } else {
-                console.error("Failed to upload", file.name);
+                const errorData = await res.json().catch(() => ({ error: 'Unknown server error' }));
+                console.error("Failed to upload", file.name, errorData.error);
+                setErrorMessage(prev => prev || `Failed to upload ${file.name}: ${errorData.error}`);
             }
             
             // Artificial progress calculation since fetch doesn't have onUploadProgress out of the box easily

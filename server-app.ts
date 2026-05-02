@@ -25,30 +25,20 @@ try {
 let db: any = null;
 let bucket: any = null;
 
-let serviceAccountObj: any = null;
-if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-  const saBytes = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8');
-  serviceAccountObj = JSON.parse(saBytes);
-} else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  serviceAccountObj = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-}
-
-if (!admin.apps.length && (configData || serviceAccountObj)) {
+if (!admin.apps.length && configData) {
   try {
-    const adminConfig: admin.AppOptions = {};
-    if (configData) {
-      adminConfig.projectId = configData.projectId;
-      adminConfig.storageBucket = configData.storageBucket;
-    } else if (serviceAccountObj && serviceAccountObj.project_id) {
-      adminConfig.projectId = serviceAccountObj.project_id;
-      adminConfig.storageBucket = `${serviceAccountObj.project_id}.appspot.com`; // Usually the default bucket format
-    }
+    const adminConfig: admin.AppOptions = {
+      projectId: configData.projectId,
+      storageBucket: configData.storageBucket
+    };
 
-    if (serviceAccountObj) {
-      adminConfig.credential = admin.credential.cert(serviceAccountObj);
-    } else if (process.env.GCP_PROJECT) {
-      // Fallback for default execution environment
-      adminConfig.credential = admin.credential.applicationDefault();
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      const saBytes = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8');
+      adminConfig.credential = admin.credential.cert(JSON.parse(saBytes));
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      adminConfig.credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
+    } else {
+      console.warn("No explicit Firebase credentials found. Local persistence may fail on serverless platforms.");
     }
 
     admin.initializeApp(adminConfig);
@@ -263,19 +253,27 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // API routes
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ 
+    status: "ok",
+    storage: {
+      firebase: !!bucket,
+      firestore: !!db,
+      drive: !!driveClient,
+      blob: !!process.env.BLOB_READ_WRITE_TOKEN
+    },
+    environment: {
+      isVercel: !!process.env.VERCEL,
+      hasConfig: !!configData
+    }
+  });
 });
 
 // Upload file
 app.post("/api/upload", upload.single("file"), async (req, res) => {
-  if (process.env.VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
-    return res.status(500).json({ error: "Storage is not configured. Please add BLOB_READ_WRITE_TOKEN in Vercel." });
-  }
-
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded" });
   }
-  
+
   try {
     const isEncrypted = req.body.isEncrypted === 'true';
     const originalName = req.file.originalname;
@@ -284,8 +282,18 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     
     let fileData = req.file.buffer;
     
+    // Check if any storage provider is available
+    const hasFirebase = !!bucket;
+    const hasDrive = !!driveClient && !!DRIVE_FOLDER_ID;
+    const hasBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+    const isVercel = !!process.env.VERCEL;
+
+    if (isVercel && !hasFirebase && !hasDrive && !hasBlob) {
+      console.warn("Vercel detected but no persistent storage (Firebase, Drive, Blob) configured.");
+    }
+
     if (isEncrypted) {
-      if (process.env.VERCEL && !process.env.ENCRYPTION_SECRET) {
+      if (isVercel && !process.env.ENCRYPTION_SECRET) {
         return res.status(500).json({ error: "Encryption requires ENCRYPTION_SECRET environment variable on Vercel." });
       }
       const iv = crypto.randomBytes(16);
@@ -298,8 +306,8 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     let storagePath: string | undefined;
     let firebaseUrl: string | undefined;
     
-    // Always prefer Firebase Storage now
-    if (bucket) {
+    // Upload logic with cascading fallback
+    if (hasFirebase) {
       try {
         storagePath = `uploads/${internalFilename}`;
         const file = bucket.file(storagePath);
@@ -314,35 +322,42 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       }
     }
     
-    if (!storagePath) {
-      // Fallback logic
-      if (driveClient && DRIVE_FOLDER_ID) {
-        try {
-          const media = {
-            mimeType: req.file.mimetype,
-            body: Readable.from(fileData)
-          };
-          const driveRes = await driveClient.files.create({
-            requestBody: { name: internalFilename, parents: [DRIVE_FOLDER_ID] },
-            media: media,
-            fields: 'id'
-          });
-          driveFileId = driveRes.data.id;
-        } catch (err) {
-          console.error("Google Drive upload failed:", err);
-        }
-      } else if (process.env.BLOB_READ_WRITE_TOKEN) {
-        // Upload to Vercel Blob
-        const blob = await put(internalFilename, fileData, { access: 'public' });
-        blobUrl = blob.url;
-      } else {
-        // Save to local disk
-        fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+    if (!storagePath && hasDrive) {
+      try {
+        const media = {
+          mimeType: req.file.mimetype,
+          body: Readable.from(fileData)
+        };
+        const driveRes = await driveClient.files.create({
+          requestBody: { name: internalFilename, parents: [DRIVE_FOLDER_ID!] },
+          media: media,
+          fields: 'id'
+        });
+        driveFileId = driveRes.data.id;
+      } catch (err) {
+        console.error("Google Drive upload failed:", err);
       }
     }
     
+    if (!storagePath && !driveFileId && hasBlob) {
+      try {
+        const blob = await put(internalFilename, fileData, { access: 'public' });
+        blobUrl = blob.url;
+      } catch (err) {
+        console.error("Vercel Blob upload failed:", err);
+      }
+    }
+
+    if (!storagePath && !driveFileId && !blobUrl) {
+      if (isVercel) {
+        throw new Error("All configured storage providers failed or none are available for Vercel environment.");
+      }
+      // Last resort: Save to local disk (won't work reliably on Vercel serverless)
+      fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+    }
+    
     const metadata = await getMetadata();
-    const fileId = Buffer.from(`${originalName}:${isEncrypted}`).toString('hex');
+    const fileId = Buffer.from(`${originalName}:${isEncrypted}`).toString('base64').replace(/\//g, '_').replace(/\+/g, '-');
     
     if (!metadata[fileId]) {
       metadata[fileId] = {
@@ -382,26 +397,11 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
 
 // List files
 app.get("/api/files", async (req, res) => {
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 20;
-  const search = (req.query.search as string || "").toLowerCase();
-  const sort = req.query.sort as string || "date-desc";
-  const encrypted = req.query.encrypted as string;
-
   const metadata = await getMetadata();
   const fileDetails = [];
   
   for (const entry of Object.values(metadata)) {
     if (entry.versions.length === 0) continue;
-    
-    if (encrypted !== undefined) {
-      const wantEncrypted = encrypted === 'true';
-      if (entry.isEncrypted !== wantEncrypted) continue;
-    }
-    
-    if (search && !entry.originalName.toLowerCase().includes(search)) {
-      continue;
-    }
     
     const sortedVersions = [...entry.versions].sort((a, b) => b.createdAt - a.createdAt);
     const latestVersion = sortedVersions[0];
@@ -421,29 +421,8 @@ app.get("/api/files", async (req, res) => {
     });
   }
 
-  fileDetails.sort((a, b) => {
-    switch (sort) {
-      case 'name-asc': return a.originalName.localeCompare(b.originalName);
-      case 'name-desc': return b.originalName.localeCompare(a.originalName);
-      case 'size-asc': return a.size - b.size;
-      case 'size-desc': return b.size - a.size;
-      case 'date-asc': return (a.createdAt as number) - (b.createdAt as number);
-      case 'date-desc': default: return (b.createdAt as number) - (a.createdAt as number);
-    }
-  });
-  
-  const total = fileDetails.length;
-  const totalPages = Math.ceil(total / limit) || 1;
-  const offset = (page - 1) * limit;
-  const paginatedFiles = fileDetails.slice(offset, offset + limit);
-
-  res.json({
-    files: paginatedFiles,
-    total,
-    page,
-    totalPages,
-    limit
-  });
+  fileDetails.sort((a, b) => b.createdAt - a.createdAt);
+  res.json(fileDetails);
 });
 
 // Download file
@@ -601,13 +580,6 @@ app.delete("/api/files", async (req, res) => {
       await deleteVersion(v);
     }
     delete metadata[identifier];
-    if (db) {
-      try {
-        await db.collection('files').doc(identifier).delete();
-      } catch (err) {
-        console.error("Failed to delete from Firestore", err);
-      }
-    }
     await saveMetadata(metadata);
     return res.json({ message: "File group deleted successfully" });
   }
@@ -624,13 +596,6 @@ app.delete("/api/files", async (req, res) => {
        found = true;
        if (entry.versions.length === 0) {
           delete metadata[id];
-          if (db) {
-            try {
-              await db.collection('files').doc(id).delete();
-            } catch (err) {
-              console.error("Failed to delete from Firestore", err);
-            }
-          }
        }
        break;
     }

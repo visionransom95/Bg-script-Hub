@@ -44,8 +44,58 @@ export default function Download() {
   const [activeTab, setActiveTab] = useState<'standard' | 'encrypted'>('standard');
   const [expandedFileId, setExpandedFileId] = useState<string | null>(null);
 
-  const getFileIcon = (filename: string) => {
+  const getFileIcon = (filename: string, isSelected: boolean) => {
     const ext = filename.split('.').pop()?.toLowerCase();
+    const iconClass = "h-full w-full transition-transform group-hover:scale-110 duration-500";
+    
+    const getColor = () => {
+      if (isSelected) return "text-white";
+      switch (ext) {
+        case 'js':
+        case 'jsx':
+          return "text-yellow-500";
+        case 'ts':
+        case 'tsx':
+          return "text-blue-500";
+        case 'py':
+          return "text-blue-600";
+        case 'lua':
+          return "text-blue-400";
+        case 'sh':
+        case 'rb':
+        case 'go':
+          return "text-green-600";
+        case 'cpp':
+        case 'c':
+        case 'h':
+          return "text-indigo-600";
+        case 'json':
+          return "text-orange-500";
+        case 'html':
+          return "text-orange-600";
+        case 'css':
+          return "text-blue-300";
+        case 'zip':
+        case 'rar':
+        case '7z':
+          return "text-amber-600";
+        case 'pdf':
+          return "text-red-500";
+        case 'txt':
+        case 'md':
+          return "text-slate-400";
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+        case 'gif':
+          return "text-pink-500";
+        default:
+          return "text-gray-400";
+      }
+    };
+
+    const colorClass = getColor();
+
     switch (ext) {
       case 'js':
       case 'jsx':
@@ -53,7 +103,7 @@ export default function Download() {
       case 'tsx':
       case 'html':
       case 'css':
-        return <FileCode2 className="h-full w-full" />;
+        return <FileCode2 className={`${iconClass} ${colorClass}`} />;
       case 'py':
       case 'lua':
       case 'sh':
@@ -62,89 +112,59 @@ export default function Download() {
       case 'cpp':
       case 'c':
       case 'h':
-        return <FileTerminal className="h-full w-full" />;
+        return <FileTerminal className={`${iconClass} ${colorClass}`} />;
       case 'json':
-        return <FileJson className="h-full w-full" />;
+        return <FileJson className={`${iconClass} ${colorClass}`} />;
       case 'zip':
       case 'rar':
       case '7z':
       case 'tar':
       case 'gz':
-        return <FileArchive className="h-full w-full" />;
+        return <FileArchive className={`${iconClass} ${colorClass}`} />;
       case 'pdf':
       case 'doc':
       case 'docx':
       case 'txt':
       case 'md':
-        return <FileText className="h-full w-full" />;
+        return <FileText className={`${iconClass} ${colorClass}`} />;
       case 'jpg':
       case 'jpeg':
       case 'png':
       case 'gif':
       case 'svg':
       case 'webp':
-        return <FileImage className="h-full w-full" />;
+        return <FileImage className={`${iconClass} ${colorClass}`} />;
       case 'mp3':
       case 'wav':
       case 'ogg':
-        return <FileAudio className="h-full w-full" />;
+        return <FileAudio className={`${iconClass} ${colorClass}`} />;
       case 'mp4':
       case 'mov':
       case 'avi':
       case 'mkv':
-        return <FileVideo className="h-full w-full" />;
+        return <FileVideo className={`${iconClass} ${colorClass}`} />;
       default:
-        return <FileIcon className="h-full w-full" />;
+        return <FileIcon className={`${iconClass} ${colorClass}`} />;
     }
   };
 
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-
-  const fetchFiles = async (pageNum = 1, isSearch = false) => {
+  const fetchFiles = async () => {
     try {
-      if (isSearch) {
-        setLoading(true);
-      }
-      const encrypted = activeTab === 'encrypted';
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        limit: "20",
-        search: searchQuery,
-        sort: sortOption,
-        encrypted: encrypted.toString()
-      });
-      const res = await fetch(`/api/files?${params.toString()}`);
+      const res = await fetch("/api/files");
       if (res.ok) {
         const data = await res.json();
-        if (pageNum === 1) {
-          setFiles(data.files);
-        } else {
-          setFiles(prev => [...prev, ...data.files]);
-        }
-        setTotalPages(data.totalPages);
-        setHasMore(pageNum < data.totalPages);
-        setPage(pageNum);
+        setFiles(data);
       }
     } catch (error) {
       console.error("Failed to fetch files", error);
     } finally {
-      if (isSearch) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFiles(1, true);
-  }, [searchQuery, sortOption, activeTab]);
-
-  const loadMore = () => {
-    if (hasMore) {
-      fetchFiles(page + 1, false);
-    }
-  };
+    fetchFiles();
+  }, []);
 
   const recordDownloadHistory = (filesToRecord: FileInfo[]) => {
     try {
@@ -179,7 +199,7 @@ export default function Download() {
         }
       });
       if (res.ok) {
-        fetchFiles(1, true);
+        fetchFiles();
         if (selectedFiles.has(filename)) {
           const newSelection = new Set(selectedFiles);
           newSelection.delete(filename);
@@ -252,7 +272,22 @@ export default function Download() {
     setSelectedFiles(newSelection);
   };
 
-  const filteredAndSortedFiles = files; // Server-side handles filtering and sorting now
+  const filteredAndSortedFiles = [...files]
+    .filter(file => {
+      const matchesSearch = file.originalName.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTab = activeTab === 'encrypted' ? file.isEncrypted : !file.isEncrypted;
+      return matchesSearch && matchesTab;
+    })
+    .sort((a, b) => {
+      switch (sortOption) {
+        case 'name-asc': return a.originalName.localeCompare(b.originalName);
+        case 'name-desc': return b.originalName.localeCompare(a.originalName);
+        case 'size-asc': return a.size - b.size;
+        case 'size-desc': return b.size - a.size;
+        case 'date-asc': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'date-desc': default: return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
 
   const toggleAll = () => {
     if (selectedFiles.size === filteredAndSortedFiles.length && filteredAndSortedFiles.length > 0) {
@@ -440,7 +475,7 @@ export default function Download() {
                             <td className="p-8">
                               <div className="flex items-center gap-5">
                                 <div className={`p-4 rounded-[1.25rem] transition-all duration-500 w-12 h-12 flex items-center justify-center ${isSelected ? 'bg-brand-accent text-white cyber-glow' : 'bg-gray-100 text-gray-400 group-hover:bg-white group-hover:shadow-xl group-hover:text-brand-accent'}`}>
-                                  {getFileIcon(file.originalName)}
+                                  {getFileIcon(file.originalName, isSelected)}
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="font-bold text-slate-800 text-sm truncate max-w-xs md:max-w-md group-hover:text-brand-accent transition-colors" title={file.originalName}>
@@ -553,7 +588,7 @@ export default function Download() {
                       >
                         <div className="flex justify-between items-start mb-8">
                           <div className={`p-5 rounded-[1.5rem] transition-all duration-500 scale-110 w-14 h-14 flex items-center justify-center ${isSelected ? 'bg-brand-accent text-white cyber-glow' : 'bg-gray-100 text-gray-400 group-hover:bg-white group-hover:shadow-2xl group-hover:text-brand-accent'}`}>
-                            {getFileIcon(file.originalName)}
+                            {getFileIcon(file.originalName, isSelected)}
                           </div>
                           <button 
                             onClick={() => toggleSelection(file.filename)}
@@ -595,17 +630,6 @@ export default function Download() {
                     );
                   })}
                 </AnimatePresence>
-              </div>
-            )}
-            
-            {hasMore && (
-              <div className="flex justify-center mt-12 mb-8 p-4">
-                <button 
-                  onClick={loadMore} 
-                  className="px-10 py-4 rounded-full bg-slate-900 text-white font-bold text-[10px] uppercase tracking-[0.2em] hover:bg-brand-accent transition-all shadow-xl active:scale-95"
-                >
-                  Load More Files
-                </button>
               </div>
             )}
           </div>
