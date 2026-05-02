@@ -10,7 +10,15 @@ export default function Home() {
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error' | 'partial'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [envInfo, setEnvInfo] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    fetch("/api/health")
+      .then(r => r.json())
+      .then(data => setEnvInfo(data))
+      .catch(err => console.error("Health check failed", err));
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -53,12 +61,21 @@ export default function Home() {
         formData.append("isEncrypted", isEncrypted.toString());
 
         try {
-            // Vercel Serverless Function limit is 4.5MB. 
-            // Most files will fail if they are larger than this when sent to a standard serverless function.
-            const VERCEL_LIMIT = 4.5 * 1024 * 1024;
-            if (file.size > VERCEL_LIMIT && window.location.hostname.includes('vercel.app')) {
-                setErrorMessage(`${file.name} is too large for Vercel upload (max 4.5MB). Please use a smaller file or host on a platform with higher limits.`);
+            // Vercel Serverless Function limit is 4.5MB total request size.
+            // We use 4.0MB to account for multipart/form-data overhead.
+            const isVercel = envInfo?.environment?.isVercel || window.location.hostname.includes('vercel.app');
+            const VERCEL_LIMIT = 4.0 * 1024 * 1024;
+            
+            if (isVercel && file.size > VERCEL_LIMIT) {
+                const limitErr = `${file.name} is too large for Vercel (max ~4MB). Vercel serverless functions have a strict 4.5MB request body limit. Please use a smaller file or host on a platform with higher limits.`;
+                setErrorMessage(prev => prev ? prev + "\n" + limitErr : limitErr);
                 continue;
+            }
+
+            // check if storage is missing on vercel
+            if (isVercel && envInfo?.storage && !envInfo.storage.firebase && !envInfo.storage.drive && !envInfo.storage.blob) {
+                const storageErr = "No persistent storage (Firebase/Blob/Drive) configured for Vercel. Files will be lost when the serverless function restarts.";
+                setErrorMessage(prev => prev || storageErr);
             }
 
             const res = await fetch("/api/upload", {

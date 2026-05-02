@@ -363,8 +363,13 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
         console.warn("No persistent storage providers (Firebase, Drive, Blob) configured or used. Falling back to ephemeral /tmp storage.");
       }
       try {
+        if (!fs.existsSync(UPLOADS_DIR)) {
+          fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        }
         fs.writeFileSync(path.join(UPLOADS_DIR, internalFilename), fileData);
+        console.log(`Saved to local storage: ${internalFilename}`);
       } catch (fsErr: any) {
+        console.error("Local storage write failed:", fsErr);
         throw new Error(`Local storage write failed: ${fsErr.message}`);
       }
     }
