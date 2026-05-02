@@ -98,23 +98,53 @@ export default function Download() {
     }
   };
 
-  const fetchFiles = async () => {
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const fetchFiles = async (pageNum = 1, isSearch = false) => {
     try {
-      const res = await fetch("/api/files");
+      if (isSearch) {
+        setLoading(true);
+      }
+      const encrypted = activeTab === 'encrypted';
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        limit: "20",
+        search: searchQuery,
+        sort: sortOption,
+        encrypted: encrypted.toString()
+      });
+      const res = await fetch(`/api/files?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setFiles(data);
+        if (pageNum === 1) {
+          setFiles(data.files);
+        } else {
+          setFiles(prev => [...prev, ...data.files]);
+        }
+        setTotalPages(data.totalPages);
+        setHasMore(pageNum < data.totalPages);
+        setPage(pageNum);
       }
     } catch (error) {
       console.error("Failed to fetch files", error);
     } finally {
-      setLoading(false);
+      if (isSearch) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchFiles();
-  }, []);
+    fetchFiles(1, true);
+  }, [searchQuery, sortOption, activeTab]);
+
+  const loadMore = () => {
+    if (hasMore) {
+      fetchFiles(page + 1, false);
+    }
+  };
 
   const recordDownloadHistory = (filesToRecord: FileInfo[]) => {
     try {
@@ -149,7 +179,7 @@ export default function Download() {
         }
       });
       if (res.ok) {
-        fetchFiles();
+        fetchFiles(1, true);
         if (selectedFiles.has(filename)) {
           const newSelection = new Set(selectedFiles);
           newSelection.delete(filename);
@@ -222,22 +252,7 @@ export default function Download() {
     setSelectedFiles(newSelection);
   };
 
-  const filteredAndSortedFiles = [...files]
-    .filter(file => {
-      const matchesSearch = file.originalName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTab = activeTab === 'encrypted' ? file.isEncrypted : !file.isEncrypted;
-      return matchesSearch && matchesTab;
-    })
-    .sort((a, b) => {
-      switch (sortOption) {
-        case 'name-asc': return a.originalName.localeCompare(b.originalName);
-        case 'name-desc': return b.originalName.localeCompare(a.originalName);
-        case 'size-asc': return a.size - b.size;
-        case 'size-desc': return b.size - a.size;
-        case 'date-asc': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        case 'date-desc': default: return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-    });
+  const filteredAndSortedFiles = files; // Server-side handles filtering and sorting now
 
   const toggleAll = () => {
     if (selectedFiles.size === filteredAndSortedFiles.length && filteredAndSortedFiles.length > 0) {
@@ -580,6 +595,17 @@ export default function Download() {
                     );
                   })}
                 </AnimatePresence>
+              </div>
+            )}
+            
+            {hasMore && (
+              <div className="flex justify-center mt-12 mb-8 p-4">
+                <button 
+                  onClick={loadMore} 
+                  className="px-10 py-4 rounded-full bg-slate-900 text-white font-bold text-[10px] uppercase tracking-[0.2em] hover:bg-brand-accent transition-all shadow-xl active:scale-95"
+                >
+                  Load More Files
+                </button>
               </div>
             )}
           </div>

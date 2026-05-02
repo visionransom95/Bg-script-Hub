@@ -25,12 +25,33 @@ try {
 let db: any = null;
 let bucket: any = null;
 
-if (!admin.apps.length && configData) {
+let serviceAccountObj: any = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+  const saBytes = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8');
+  serviceAccountObj = JSON.parse(saBytes);
+} else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  serviceAccountObj = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+}
+
+if (!admin.apps.length && (configData || serviceAccountObj)) {
   try {
-    admin.initializeApp({
-      projectId: configData.projectId,
-      storageBucket: configData.storageBucket
-    });
+    const adminConfig: admin.AppOptions = {};
+    if (configData) {
+      adminConfig.projectId = configData.projectId;
+      adminConfig.storageBucket = configData.storageBucket;
+    } else if (serviceAccountObj && serviceAccountObj.project_id) {
+      adminConfig.projectId = serviceAccountObj.project_id;
+      adminConfig.storageBucket = `${serviceAccountObj.project_id}.appspot.com`; // Usually the default bucket format
+    }
+
+    if (serviceAccountObj) {
+      adminConfig.credential = admin.credential.cert(serviceAccountObj);
+    } else if (process.env.GCP_PROJECT) {
+      // Fallback for default execution environment
+      adminConfig.credential = admin.credential.applicationDefault();
+    }
+
+    admin.initializeApp(adminConfig);
     console.log("Firebase Admin initialized");
   } catch (err) {
     console.error("Failed to initialize Firebase Admin", err);
@@ -38,10 +59,14 @@ if (!admin.apps.length && configData) {
 }
 
 if (admin.apps.length) {
-  db = configData?.firestoreDatabaseId 
-    ? getFirestore(configData.firestoreDatabaseId) 
-    : getFirestore();
-  bucket = getStorage().bucket();
+  try {
+    db = configData?.firestoreDatabaseId 
+      ? getFirestore(admin.app(), configData.firestoreDatabaseId) 
+      : getFirestore();
+    bucket = getStorage().bucket();
+  } catch (err) {
+    console.error("Failed to acquire Firestore or Storage. Check credentials.", err);
+  }
 }
 
 // storage variable removed as we use getStorage() modularly
@@ -317,7 +342,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     }
     
     const metadata = await getMetadata();
-    const fileId = Buffer.from(`${originalName}:${isEncrypted}`).toString('base64');
+    const fileId = Buffer.from(`${originalName}:${isEncrypted}`).toString('hex');
     
     if (!metadata[fileId]) {
       metadata[fileId] = {
@@ -357,11 +382,26 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
 
 // List files
 app.get("/api/files", async (req, res) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = (req.query.search as string || "").toLowerCase();
+  const sort = req.query.sort as string || "date-desc";
+  const encrypted = req.query.encrypted as string;
+
   const metadata = await getMetadata();
   const fileDetails = [];
   
   for (const entry of Object.values(metadata)) {
     if (entry.versions.length === 0) continue;
+    
+    if (encrypted !== undefined) {
+      const wantEncrypted = encrypted === 'true';
+      if (entry.isEncrypted !== wantEncrypted) continue;
+    }
+    
+    if (search && !entry.originalName.toLowerCase().includes(search)) {
+      continue;
+    }
     
     const sortedVersions = [...entry.versions].sort((a, b) => b.createdAt - a.createdAt);
     const latestVersion = sortedVersions[0];
@@ -381,8 +421,29 @@ app.get("/api/files", async (req, res) => {
     });
   }
 
-  fileDetails.sort((a, b) => b.createdAt - a.createdAt);
-  res.json(fileDetails);
+  fileDetails.sort((a, b) => {
+    switch (sort) {
+      case 'name-asc': return a.originalName.localeCompare(b.originalName);
+      case 'name-desc': return b.originalName.localeCompare(a.originalName);
+      case 'size-asc': return a.size - b.size;
+      case 'size-desc': return b.size - a.size;
+      case 'date-asc': return (a.createdAt as number) - (b.createdAt as number);
+      case 'date-desc': default: return (b.createdAt as number) - (a.createdAt as number);
+    }
+  });
+  
+  const total = fileDetails.length;
+  const totalPages = Math.ceil(total / limit) || 1;
+  const offset = (page - 1) * limit;
+  const paginatedFiles = fileDetails.slice(offset, offset + limit);
+
+  res.json({
+    files: paginatedFiles,
+    total,
+    page,
+    totalPages,
+    limit
+  });
 });
 
 // Download file
@@ -540,6 +601,13 @@ app.delete("/api/files", async (req, res) => {
       await deleteVersion(v);
     }
     delete metadata[identifier];
+    if (db) {
+      try {
+        await db.collection('files').doc(identifier).delete();
+      } catch (err) {
+        console.error("Failed to delete from Firestore", err);
+      }
+    }
     await saveMetadata(metadata);
     return res.json({ message: "File group deleted successfully" });
   }
@@ -556,6 +624,13 @@ app.delete("/api/files", async (req, res) => {
        found = true;
        if (entry.versions.length === 0) {
           delete metadata[id];
+          if (db) {
+            try {
+              await db.collection('files').doc(id).delete();
+            } catch (err) {
+              console.error("Failed to delete from Firestore", err);
+            }
+          }
        }
        break;
     }

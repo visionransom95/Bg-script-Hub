@@ -97,29 +97,52 @@ export default function Admin() {
   const [fileEntries, setFileEntries] = useState<FileDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   
   const [selectedFile, setSelectedFile] = useState<FileDetails | null>(null);
 
   useEffect(() => {
     if (sessionToken) {
-      fetchFiles();
+      fetchFiles(1, true);
     }
-  }, [sessionToken]);
+  }, [sessionToken, searchQuery]);
 
-  const fetchFiles = async () => {
-    setLoading(true);
+  const fetchFiles = async (pageNum = 1, isSearch = false) => {
+    if (isSearch) {
+      setLoading(true);
+    }
     try {
-      const res = await fetch('/api/files');
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        limit: "20",
+        search: searchQuery
+      });
+      const res = await fetch(`/api/files?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setFileEntries(data);
+        if (pageNum === 1) {
+          setFileEntries(data.files);
+        } else {
+          setFileEntries(prev => [...prev, ...data.files]);
+        }
+        setHasMore(pageNum < data.totalPages);
+        setPage(pageNum);
       } else {
         setError('Failed to load files.');
       }
     } catch (err) {
       setError('Error communicating with server.');
     } finally {
-      setLoading(false);
+      if (isSearch) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const loadMore = () => {
+    if (hasMore) {
+      fetchFiles(page + 1, false);
     }
   };
 
@@ -165,9 +188,46 @@ export default function Admin() {
         }
       });
       if (res.ok) {
-        setFileEntries(f => f.filter(file => file.id !== identifier && file.filename !== identifier));
-        if (selectedFile?.id === identifier || selectedFile?.filename === identifier) {
+        setFileEntries(entries => entries.map(ent => {
+          if (ent.id === identifier) return null; // deleted full group
+          const vIndex = ent.versions.findIndex(v => v.filename === identifier);
+          if (vIndex !== -1) {
+            const newVersions = [...ent.versions];
+            newVersions.splice(vIndex, 1);
+            if (newVersions.length === 0) return null;
+            return { 
+              ...ent, 
+              versions: newVersions, 
+              filename: newVersions[0].filename, 
+              size: newVersions[0].size, 
+              createdAt: newVersions[0].createdAt,
+              url: newVersions[0].url
+            };
+          }
+          return ent;
+        }).filter(Boolean) as FileDetails[]);
+        
+        if (selectedFile?.id === identifier) {
           setSelectedFile(null);
+        } else if (selectedFile) {
+          // If we deleted a version of the selected file, update selectedFile
+          const vIndex = selectedFile.versions.findIndex(v => v.filename === identifier);
+          if (vIndex !== -1) {
+            const newVersions = [...selectedFile.versions];
+            newVersions.splice(vIndex, 1);
+            if (newVersions.length === 0) {
+              setSelectedFile(null);
+            } else {
+              setSelectedFile({
+                ...selectedFile,
+                versions: newVersions,
+                filename: newVersions[0].filename,
+                size: newVersions[0].size,
+                createdAt: newVersions[0].createdAt,
+                url: newVersions[0].url
+              });
+            }
+          }
         }
       } else {
         alert("Failed to delete file.");
@@ -177,10 +237,7 @@ export default function Admin() {
     }
   };
 
-  const filteredFiles = fileEntries.filter(f => 
-    f.originalName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    f.filename.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFiles = fileEntries;
 
   if (!sessionToken) {
     return (
@@ -329,6 +386,16 @@ export default function Admin() {
                     </div>
                   </div>
                 ))}
+                {hasMore && (
+                  <div className="p-4 flex justify-center border-t border-gray-50">
+                    <button 
+                      onClick={loadMore} 
+                      className="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -395,12 +462,23 @@ export default function Admin() {
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-gray-400 uppercase tracking-widest">{new Date(ver.createdAt).toLocaleString()}</span>
-                                <button 
-                                  onClick={() => handleDelete(ver.filename)}
-                                  className="text-[10px] text-red-500 uppercase tracking-widest font-bold hover:underline"
-                                >
-                                  Delete Version
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      saveAs(ver.url, selectedFile.originalName);
+                                    }}
+                                    className="text-[10px] text-gray-500 uppercase tracking-widest font-bold hover:underline"
+                                  >
+                                    Download
+                                  </button>
+                                  <span className="text-gray-300">|</span>
+                                  <button 
+                                    onClick={() => handleDelete(ver.filename)}
+                                    className="text-[10px] text-red-500 uppercase tracking-widest font-bold hover:underline"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                               </div>
                            </div>
                         ))}
